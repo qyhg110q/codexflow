@@ -1,0 +1,1218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CodexFlow Android Prototype</title>
+  <style>
+    :root {
+      --canvas: #f7f7f4;
+      --shell: #eeeeea;
+      --surface: rgba(255, 255, 255, 0.88);
+      --surface-strong: #ffffff;
+      --ink: #20252a;
+      --muted: #6f787d;
+      --faint: #9aa2a7;
+      --line: rgba(29, 35, 40, 0.09);
+      --blue: #3574b7;
+      --green: #25905d;
+      --orange: #d9792d;
+      --red: #b94a48;
+      --terminal: #1d252b;
+      --terminal-text: #e4ecef;
+      --shadow: 0 18px 55px rgba(31, 36, 41, 0.12);
+      --soft-shadow: 0 10px 30px rgba(31, 36, 41, 0.08);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      font-family: "HarmonyOS Sans SC", "MiSans", "OPPO Sans", "Noto Sans SC", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(53, 116, 183, 0.14), transparent 34%),
+        radial-gradient(circle at 95% 10%, rgba(37, 144, 93, 0.12), transparent 30%),
+        linear-gradient(145deg, #fafaf8, var(--shell));
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .stage {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .phone {
+      position: relative;
+      width: min(430px, 100%);
+      height: min(920px, calc(100vh - 20px));
+      min-height: 760px;
+      overflow: hidden;
+      border: 1px solid rgba(24, 28, 32, 0.16);
+      border-radius: 42px;
+      background: var(--canvas);
+      box-shadow: 0 24px 90px rgba(20, 24, 28, 0.22);
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto 1fr auto;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.54), transparent 28%),
+        var(--canvas);
+    }
+
+    .screen.active {
+      display: grid;
+      animation: settle 260ms ease both;
+    }
+
+    .screen.home-screen {
+      grid-template-rows: 1fr auto;
+    }
+
+    .appbar {
+      padding: calc(18px + var(--safe-top)) 18px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 2;
+    }
+
+    .appbar.center {
+      justify-content: center;
+    }
+
+    .header-spacer {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .icon-button {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: var(--ink);
+      background: rgba(255,255,255,0.68);
+      border: 1px solid var(--line);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .content {
+      min-height: 0;
+      overflow: auto;
+      padding: 0 18px 18px;
+      scrollbar-width: none;
+    }
+
+    .content::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hero {
+      position: relative;
+      padding: 20px 0 20px;
+      overflow: visible;
+      z-index: 12;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background:
+        radial-gradient(circle at 86% 10%, rgba(53, 116, 183, 0.16), transparent 34%),
+        linear-gradient(145deg, rgba(255,255,255,0.94), rgba(248,248,244,0.88));
+      box-shadow: var(--shadow);
+    }
+
+    .hero:after {
+      content: "";
+      position: absolute;
+      width: 160px;
+      height: 160px;
+      right: -62px;
+      bottom: -78px;
+      border-radius: 45px;
+      rotate: 18deg;
+      background: linear-gradient(145deg, rgba(37, 144, 93, 0.18), rgba(53, 116, 183, 0.10));
+    }
+
+    .hero-top,
+    .hero-main,
+    .hero-actions {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-top,
+    .hero-main {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .status-pill,
+    .small-pill,
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .status-pill {
+      padding: 7px 10px;
+      color: var(--green);
+      background: rgba(37, 144, 93, 0.12);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .small-pill {
+      padding: 6px 9px;
+      color: var(--muted);
+      background: rgba(32, 37, 42, 0.055);
+      font-size: 11px;
+      font-weight: 720;
+    }
+
+    .combo {
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .combo-button {
+      min-height: 31px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      color: var(--muted);
+      border-radius: 999px;
+      background: rgba(32, 37, 42, 0.055);
+      font-size: 11px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .combo-button.primary {
+      color: var(--blue);
+      background: rgba(53,116,183,0.12);
+    }
+
+    .combo-button.project {
+      max-width: 190px;
+    }
+
+    .combo-button span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .combo-button svg {
+      width: 13px;
+      height: 13px;
+      flex: 0 0 auto;
+    }
+
+    .combo-menu {
+      position: absolute;
+      left: 0;
+      bottom: calc(100% + 8px);
+      width: 224px;
+      z-index: 120;
+      display: none;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.96);
+      box-shadow: 0 18px 54px rgba(31,36,41,0.18);
+      backdrop-filter: blur(22px);
+    }
+
+    .combo.open .combo-menu {
+      display: block;
+      animation: settle 180ms ease both;
+    }
+
+    .combo.right .combo-menu {
+      left: auto;
+      right: 0;
+    }
+
+    .composer.in-flow .combo-menu {
+      top: calc(100% + 8px);
+      bottom: auto;
+    }
+
+    .combo-item,
+    .combo-subhead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      color: var(--ink);
+      background: transparent;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .combo-subhead {
+      justify-content: space-between;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    .combo-item:hover,
+    .combo-subhead:hover {
+      background: rgba(32,37,42,0.045);
+    }
+
+    .combo-item .check {
+      margin-left: auto;
+      color: var(--ink);
+      font-size: 18px;
+    }
+
+    .combo-item .hint {
+      margin-left: auto;
+      color: var(--faint);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .combo-divider {
+      height: 1px;
+      margin: 4px 12px;
+      background: var(--line);
+    }
+
+    .section-head {
+      position: relative;
+      z-index: 1;
+      margin: 22px 2px 11px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 780;
+      letter-spacing: -0.03em;
+    }
+
+    .section-head span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metrics {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      padding: 12px 10px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 23px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .session-list {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 10px;
+      padding-bottom: 10px;
+    }
+
+    .session-card {
+      position: relative;
+      padding: 15px;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .session-card.running:before,
+    .session-card.waiting:before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      background: var(--green);
+    }
+
+    .session-card.waiting:before {
+      background: var(--orange);
+    }
+
+    .session-top {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .agent-mark {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 14px;
+      color: white;
+      background: linear-gradient(135deg, #20252a, #59636a);
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: -0.03em;
+    }
+
+    .agent-mark.claude {
+      background: linear-gradient(135deg, #cb6c2d, #9d5034);
+    }
+
+    .session-body {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .session-name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 15px;
+      font-weight: 760;
+      letter-spacing: -0.02em;
+    }
+
+    .session-desc {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 540;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      padding: 6px 8px;
+      color: var(--muted);
+      background: rgba(32,37,42,0.055);
+      font-size: 11px;
+      font-weight: 720;
+    }
+
+    .chip.blue {
+      color: var(--blue);
+      background: rgba(53,116,183,0.12);
+    }
+
+    .chip.green {
+      color: var(--green);
+      background: rgba(37,144,93,0.12);
+    }
+
+    .chip.orange {
+      color: var(--orange);
+      background: rgba(217,121,45,0.12);
+    }
+
+    .bottom-nav {
+      padding: 8px 18px calc(12px + var(--safe-bottom));
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      background: rgba(250,250,247,0.82);
+      backdrop-filter: blur(22px);
+    }
+
+    .nav-item {
+      height: 56px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      border-radius: 20px;
+      background: transparent;
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      stroke-width: 2;
+    }
+
+    .nav-item.active {
+      color: var(--ink);
+      background: rgba(32,37,42,0.07);
+    }
+
+    .thread {
+      padding-bottom: 166px;
+    }
+
+    .message {
+      margin-bottom: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .message.user {
+      justify-items: end;
+    }
+
+    .bubble {
+      width: fit-content;
+      max-width: 92%;
+      padding: 13px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      line-height: 1.62;
+      font-weight: 530;
+      border: 1px solid var(--line);
+    }
+
+    .message.user .bubble {
+      color: white;
+      border-color: transparent;
+      background: linear-gradient(135deg, #303941, #1f252a);
+      border-bottom-right-radius: 7px;
+    }
+
+    .message.agent .bubble {
+      background: rgba(255,255,255,0.78);
+      border-bottom-left-radius: 7px;
+      box-shadow: var(--soft-shadow);
+    }
+
+    .turn-panel {
+      padding: 14px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.78);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .turn-panel h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 780;
+      letter-spacing: -0.02em;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 620;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      margin-top: 4px;
+      flex: 0 0 auto;
+      border-radius: 99px;
+      background: var(--line);
+    }
+
+    .dot.done {
+      background: var(--green);
+    }
+
+    .dot.now {
+      background: var(--orange);
+      box-shadow: 0 0 0 5px rgba(217,121,45,0.14);
+    }
+
+    .terminal {
+      margin-top: 12px;
+      padding: 12px;
+      overflow: hidden;
+      color: var(--terminal-text);
+      border-radius: 16px;
+      background: var(--terminal);
+      font-family: "JetBrains Mono", "Cascadia Mono", monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .composer {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: calc(75px + var(--safe-bottom));
+      padding: 12px;
+      border: 1px solid rgba(32,37,42,0.12);
+      border-radius: 28px;
+      background: rgba(255,255,255,0.88);
+      box-shadow: 0 18px 60px rgba(31,36,41,0.18);
+      backdrop-filter: blur(22px);
+    }
+
+    .composer.in-flow {
+      position: relative;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      margin-top: 20px;
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(31,36,41,0.13);
+    }
+
+    .composer.in-flow textarea {
+      height: 108px;
+    }
+
+    .composer textarea {
+      width: 100%;
+      height: 62px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      background: transparent;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .composer textarea::placeholder {
+      color: var(--faint);
+    }
+
+    .composer-tools,
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .composer-tools {
+      margin-top: 7px;
+    }
+
+    .composer.in-flow .composer-tools {
+      align-items: flex-start;
+    }
+
+    .control-row {
+      min-width: 0;
+      flex: 1;
+      overflow: auto;
+      scrollbar-width: none;
+    }
+
+    .control-stack {
+      min-width: 0;
+      flex: 1;
+      display: grid;
+      gap: 8px;
+    }
+
+    .control-row.primary {
+      overflow: visible;
+      flex-wrap: nowrap;
+    }
+
+    .control-row.project-line {
+      overflow: visible;
+    }
+
+    .control-row.project-line .combo {
+      width: 100%;
+    }
+
+    .control-row.project-line .combo-button.project {
+      width: 100%;
+      max-width: none;
+      justify-content: space-between;
+    }
+
+    .send {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: white;
+      border-radius: 999px;
+      background: #878c91;
+    }
+
+    .send.create-session {
+      background: linear-gradient(135deg, var(--ink), #3b454d);
+    }
+
+    .approval-card,
+    .settings-card {
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.8);
+      border: 1px solid var(--line);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .approval-card + .approval-card,
+    .settings-card + .settings-card {
+      margin-top: 12px;
+    }
+
+    .approval-title,
+    .settings-title {
+      font-size: 15px;
+      font-weight: 780;
+      letter-spacing: -0.02em;
+    }
+
+    .approval-desc,
+    .settings-desc {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 540;
+    }
+
+    .approval-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .allow,
+    .deny {
+      height: 42px;
+      border-radius: 14px;
+      font-weight: 760;
+    }
+
+    .allow {
+      color: white;
+      background: var(--green);
+    }
+
+    .deny {
+      color: var(--red);
+      background: rgba(185,74,72,0.10);
+    }
+
+    .field {
+      margin-top: 12px;
+      padding: 13px;
+      border-radius: 16px;
+      background: rgba(32,37,42,0.05);
+      color: var(--ink);
+      font-family: "JetBrains Mono", "Cascadia Mono", monospace;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fab {
+      position: absolute;
+      right: 18px;
+      bottom: calc(86px + var(--safe-bottom));
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      color: white;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #20252a, #3b454d);
+      box-shadow: 0 18px 42px rgba(32,37,42,0.26);
+      z-index: 5;
+    }
+
+    .prototype-note {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      padding: 8px 10px;
+      color: rgba(255,255,255,0.82);
+      border-radius: 999px;
+      background: rgba(32,37,42,0.58);
+      font-size: 12px;
+      font-weight: 720;
+      backdrop-filter: blur(18px);
+    }
+
+    @keyframes settle {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.995);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .stage {
+        display: block;
+        padding: 0;
+      }
+
+      .phone {
+        width: 100vw;
+        height: 100vh;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .prototype-note {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="phone">
+      <div class="prototype-note">HTML prototype</div>
+
+      <main class="screen active home-screen" id="home-screen">
+        <section class="content">
+          <div class="section-head">
+            <h2>控制台</h2>
+            <span>5 月 4 日</span>
+          </div>
+          <section class="metrics">
+            <div class="metric"><strong>18</strong><span>会话</span></div>
+            <div class="metric"><strong>4</strong><span>运行</span></div>
+            <div class="metric"><strong>3</strong><span>审批</span></div>
+            <div class="metric"><strong>9</strong><span>接管</span></div>
+          </section>
+
+          <article class="hero">
+            <div class="hero-top">
+              <span class="status-pill">● Agent 在线</span>
+              <span class="small-pill">局域网 4318</span>
+            </div>
+            <section class="composer in-flow">
+              <textarea placeholder="可向 Codex 询问任何事。输入 @ 使用插件或提交文件"></textarea>
+              <div class="composer-tools">
+                <button class="icon-button" type="button" aria-label="添加" style="width:38px;height:38px;box-shadow:none;">+</button>
+                <div class="control-stack">
+                  <div class="control-row primary">
+                    <div class="combo">
+                      <button class="combo-button primary" type="button" data-combo>
+                        <span>自动审查</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div class="combo-menu">
+                        <button class="combo-item" type="button">默认权限</button>
+                        <button class="combo-item" type="button">自动审查 <span class="check">✓</span></button>
+                        <button class="combo-item" type="button">完全使用权限</button>
+                      </div>
+                    </div>
+
+                    <div class="combo">
+                      <button class="combo-button" type="button" data-combo>
+                        <span>5.4 中</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div class="combo-menu">
+                        <button class="combo-item" type="button">低</button>
+                        <button class="combo-item" type="button">中 <span class="check">✓</span></button>
+                        <button class="combo-item" type="button">高</button>
+                        <button class="combo-item" type="button">超高</button>
+                        <div class="combo-divider"></div>
+                        <button class="combo-item" type="button">GPT-5.4 <span class="check">✓</span></button>
+                        <button class="combo-item" type="button">GPT-5.5</button>
+                        <div class="combo-divider"></div>
+                        <button class="combo-item" type="button">标准 <span class="check">✓</span></button>
+                        <button class="combo-item" type="button">快速</button>
+                      </div>
+                    </div>
+
+                    <span class="small-pill">main</span>
+                    <span class="small-pill">本地模式</span>
+                  </div>
+
+                  <div class="control-row project-line">
+                    <div class="combo right">
+                      <button class="combo-button project" type="button" data-combo>
+                        <span>context-infrastructure</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div class="combo-menu">
+                        <button class="combo-item" type="button">context-infrastructure <span class="check">✓</span></button>
+                        <button class="combo-item" type="button">MBarEdit</button>
+                        <button class="combo-item" type="button">Al-exporter</button>
+                        <div class="combo-divider"></div>
+                        <button class="combo-item" type="button">新增项目路径</button>
+                        <button class="combo-item" type="button">首次使用：新增项目</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button class="send create-session" type="button" data-screen="detail-screen" aria-label="创建并发送">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </button>
+              </div>
+            </section>
+          </article>
+
+          <div class="section-head">
+            <h2>最近会话</h2>
+            <span>按活跃度排序</span>
+          </div>
+          <section class="session-list">
+            <article class="session-card running" data-screen="detail-screen">
+              <div class="session-top">
+                <div class="agent-mark">CX</div>
+                <div class="session-body">
+                  <div class="session-name">迭代 context-infrastructure 的 Android 端体验</div>
+                  <div class="session-desc">正在调整移动端会话详情、composer 和审批流。</div>
+                </div>
+              </div>
+              <div class="card-meta">
+                <span class="chip green">运行中</span>
+                <span class="chip blue">5.4 中</span>
+                <span class="chip">main</span>
+                <span class="chip">context-infrastructure</span>
+              </div>
+            </article>
+
+            <article class="session-card waiting" data-screen="approvals-screen">
+              <div class="session-top">
+                <div class="agent-mark">CX</div>
+                <div class="session-body">
+                  <div class="session-name">修复增量扫描写入与自定义源目录</div>
+                  <div class="session-desc">等待 shell 命令权限审批，处理后可继续验证。</div>
+                </div>
+              </div>
+              <div class="card-meta">
+                <span class="chip orange">待审批 2</span>
+                <span class="chip">build-c25-fix</span>
+                <span class="chip">MBarEdit</span>
+              </div>
+            </article>
+
+            <article class="session-card" data-screen="detail-screen">
+              <div class="session-top">
+                <div class="agent-mark claude">CL</div>
+                <div class="session-body">
+                  <div class="session-name">抽取 Codex episodes</div>
+                  <div class="session-desc">Claude history 已导入，可查看历史，暂无 live runtime。</div>
+                </div>
+              </div>
+              <div class="card-meta">
+                <span class="chip">History</span>
+                <span class="chip">5 天前</span>
+                <span class="chip">Al-exporter</span>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <nav class="bottom-nav">
+          <button class="nav-item active" type="button" data-screen="home-screen" aria-label="会话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4ZM13 5.5A1.5 1.5 0 0 1 14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4ZM4 14.5A1.5 1.5 0 0 1 5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4ZM13 14.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="approvals-screen" aria-label="审批">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 12 2 2 4-5"/><path d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="settings-screen" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+          </button>
+        </nav>
+      </main>
+
+      <main class="screen" id="detail-screen">
+        <header class="appbar center">
+          <button class="icon-button" type="button" data-screen="home-screen" aria-label="返回">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="header-spacer"></div>
+          <button class="icon-button" type="button" aria-label="更多">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 12h.01M19 12h.01M5 12h.01"/></svg>
+          </button>
+        </header>
+
+        <section class="content thread">
+          <article class="message user">
+            <div class="bubble">这个是 Codex App 的界面，帮我设计一个安卓 app 端的界面，后续基于 codexflow 迭代。</div>
+          </article>
+
+          <article class="message agent">
+            <div class="bubble">这个页面代表刚刚创建或从列表点开的某一个会话。手机端只有会话列表和具体会话详情，不设置额外的全局活动会话入口。</div>
+          </article>
+
+          <article class="turn-panel">
+            <h3>这个会话的执行计划</h3>
+            <div class="steps">
+              <div class="step"><span class="dot done"></span><span>读取 workspace 规则和 codexflow 结构</span></div>
+              <div class="step"><span class="dot done"></span><span>建立 Android 原型目录和设计 token</span></div>
+              <div class="step"><span class="dot now"></span><span>实现移动端首页、会话详情、审批和设置预览</span></div>
+              <div class="step"><span class="dot"></span><span>补充迁移到 Flutter 的组件说明</span></div>
+            </div>
+            <div class="terminal">$ codexflow design preview<br>serving docs/ui_references/android_mobile/android_mobile_prototype.html<br>status: ready for iteration</div>
+          </article>
+
+          <article class="message agent">
+            <div class="bubble">Android 上最重要的不是复刻桌面，而是降低回到任务现场的成本。打开后第一眼要知道：Agent 是否在线、谁在跑、哪里卡审批、我能不能直接输入下一步。</div>
+          </article>
+        </section>
+
+        <section class="composer">
+          <textarea placeholder="要求后续变更"></textarea>
+          <div class="composer-tools">
+            <button class="icon-button" type="button" aria-label="添加" style="width:38px;height:38px;box-shadow:none;">+</button>
+            <div class="control-row">
+              <div class="combo">
+                <button class="combo-button primary" type="button" data-combo>
+                  <span>自动审查</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="combo-menu">
+                  <button class="combo-item" type="button">默认权限</button>
+                  <button class="combo-item" type="button">自动审查 <span class="check">✓</span></button>
+                  <button class="combo-item" type="button">完全使用权限</button>
+                </div>
+              </div>
+              <div class="combo">
+                <button class="combo-button" type="button" data-combo>
+                  <span>5.4 中</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="combo-menu">
+                  <button class="combo-item" type="button">低</button>
+                  <button class="combo-item" type="button">中 <span class="check">✓</span></button>
+                  <button class="combo-item" type="button">高</button>
+                  <button class="combo-item" type="button">超高</button>
+                  <div class="combo-divider"></div>
+                  <button class="combo-item" type="button">GPT-5.4 <span class="check">✓</span></button>
+                  <button class="combo-item" type="button">GPT-5.5</button>
+                  <div class="combo-divider"></div>
+                  <button class="combo-item" type="button">标准 <span class="check">✓</span></button>
+                  <button class="combo-item" type="button">快速</button>
+                </div>
+              </div>
+              <span class="small-pill">main</span>
+              <span class="small-pill">本地模式</span>
+            </div>
+            <button class="send" type="button" aria-label="发送">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <nav class="bottom-nav">
+          <button class="nav-item" type="button" data-screen="home-screen" aria-label="会话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4ZM13 5.5A1.5 1.5 0 0 1 14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4ZM4 14.5A1.5 1.5 0 0 1 5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4ZM13 14.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="approvals-screen" aria-label="审批">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 12 2 2 4-5"/><path d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="settings-screen" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+          </button>
+        </nav>
+      </main>
+
+      <main class="screen" id="approvals-screen">
+        <header class="appbar">
+          <div class="header-spacer"></div>
+          <span class="status-pill" style="color:var(--orange);background:rgba(217,121,45,0.13);">3 个等待</span>
+        </header>
+
+        <section class="content">
+          <article class="approval-card">
+            <span class="chip orange">Shell 权限</span>
+            <div class="approval-title" style="margin-top:12px;">运行 Android 构建验证</div>
+            <div class="approval-desc">`flutter build apk --release` 会写入 build 目录并调用本地 Gradle 缓存。建议允许一次，便于验证真机安装包。</div>
+            <div class="field">D:\...\codexflow\flutter\codexflow</div>
+            <div class="approval-actions">
+              <button class="deny" type="button">拒绝</button>
+              <button class="allow" type="button">允许</button>
+            </div>
+          </article>
+
+          <article class="approval-card">
+            <span class="chip blue">文件变更</span>
+            <div class="approval-title" style="margin-top:12px;">更新 Flutter 主题 token</div>
+            <div class="approval-desc">将 HTML 原型里的颜色、圆角、间距同步到 `Palette` 和 common widgets。</div>
+            <div class="approval-actions">
+              <button class="deny" type="button">稍后</button>
+              <button class="allow" type="button">应用</button>
+            </div>
+          </article>
+        </section>
+
+        <nav class="bottom-nav">
+          <button class="nav-item" type="button" data-screen="home-screen" aria-label="会话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4ZM13 5.5A1.5 1.5 0 0 1 14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4ZM4 14.5A1.5 1.5 0 0 1 5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4ZM13 14.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4Z"/></svg>
+          </button>
+          <button class="nav-item active" type="button" data-screen="approvals-screen" aria-label="审批">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 12 2 2 4-5"/><path d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="settings-screen" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+          </button>
+        </nav>
+      </main>
+
+      <main class="screen" id="settings-screen">
+        <header class="appbar">
+          <div class="header-spacer"></div>
+        </header>
+
+        <section class="content">
+          <article class="settings-card">
+            <div class="settings-title">Agent 地址</div>
+            <div class="settings-desc">Android 真机建议填写电脑的局域网地址，模拟器按实际网络映射处理。</div>
+            <div class="field">http://192.168.1.11:4318</div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-title">默认执行策略</div>
+            <div class="settings-desc">默认保持人工确认。移动端更适合把高风险动作集中在审批中心，而不是打断对话流。</div>
+            <div class="card-meta">
+              <span class="chip blue">自动审查</span>
+              <span class="chip">本地模式</span>
+              <span class="chip">5.4 中</span>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-title">设计原则</div>
+            <div class="settings-desc">这版原型刻意把 Codex App 的左侧项目树改成首页最近会话与新会话输入框。手机端的主路径是创建或打开一个会话，而不是维护一个全局活动状态。</div>
+          </article>
+        </section>
+
+        <nav class="bottom-nav">
+          <button class="nav-item" type="button" data-screen="home-screen" aria-label="会话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4ZM13 5.5A1.5 1.5 0 0 1 14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4ZM4 14.5A1.5 1.5 0 0 1 5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4ZM13 14.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4Z"/></svg>
+          </button>
+          <button class="nav-item" type="button" data-screen="approvals-screen" aria-label="审批">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 12 2 2 4-5"/><path d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+          </button>
+          <button class="nav-item active" type="button" data-screen="settings-screen" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+          </button>
+        </nav>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const screens = Array.from(document.querySelectorAll(".screen"));
+
+    function showScreen(id) {
+      screens.forEach((screen) => {
+        screen.classList.toggle("active", screen.id === id);
+      });
+      document.querySelectorAll(".nav-item").forEach((item) => {
+        item.classList.toggle("active", item.dataset.screen === id);
+      });
+    }
+
+    document.addEventListener("click", (event) => {
+      const comboButton = event.target.closest("[data-combo]");
+      if (comboButton) {
+        const combo = comboButton.closest(".combo");
+        const wasOpen = combo.classList.contains("open");
+        document.querySelectorAll(".combo.open").forEach((item) => item.classList.remove("open"));
+        combo.classList.toggle("open", !wasOpen);
+        event.stopPropagation();
+        return;
+      }
+
+      const comboItem = event.target.closest(".combo-item, .combo-subhead");
+      if (comboItem) {
+        const owner = comboItem.closest(".combo");
+        if (owner) {
+          owner.classList.remove("open");
+        }
+        event.stopPropagation();
+        return;
+      }
+
+      if (!event.target.closest(".combo-menu")) {
+        document.querySelectorAll(".combo.open").forEach((item) => item.classList.remove("open"));
+      }
+
+      const target = event.target.closest("[data-screen]");
+      if (!target) return;
+      showScreen(target.dataset.screen);
+    });
+  </script>
+</body>
+</html>
