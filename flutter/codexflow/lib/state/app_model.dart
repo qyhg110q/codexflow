@@ -6,11 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_models.dart';
 import '../services/api_client.dart';
 
-enum ApprovalActionType {
-  choice,
-  decision,
-  submitText,
-}
+enum ApprovalActionType { choice, decision, submitText }
 
 class ApprovalAction {
   ApprovalAction.choice(this.value) : type = ApprovalActionType.choice;
@@ -40,14 +36,29 @@ class ApprovalAction {
 
 class AppModel extends ChangeNotifier {
   AppModel(this._prefs)
-      : baseUrlString =
-            _prefs.getString(_baseUrlKey) ?? 'http://127.0.0.1:4318';
+    : baseUrlString = _prefs.getString(_baseUrlKey) ?? 'http://127.0.0.1:4318',
+      defaultExecutionPolicy =
+          _prefs.getString(_defaultExecutionPolicyKey) ?? 'review',
+      defaultModel = _prefs.getString(_defaultModelKey) ?? 'GPT-5.4',
+      defaultReasoning = _prefs.getString(_defaultReasoningKey) ?? 'medium',
+      defaultSpeed = _prefs.getString(_defaultSpeedKey) ?? 'standard',
+      localMode = _prefs.getBool(_localModeKey) ?? true;
 
   static const _baseUrlKey = 'codexflow.baseURL';
+  static const _defaultExecutionPolicyKey = 'codexflow.defaultPolicy';
+  static const _defaultModelKey = 'codexflow.defaultModel';
+  static const _defaultReasoningKey = 'codexflow.defaultReasoning';
+  static const _defaultSpeedKey = 'codexflow.defaultSpeed';
+  static const _localModeKey = 'codexflow.localMode';
 
   final SharedPreferences _prefs;
 
   String baseUrlString;
+  String defaultExecutionPolicy;
+  String defaultModel;
+  String defaultReasoning;
+  String defaultSpeed;
+  bool localMode;
   DashboardResponse dashboard = DashboardResponse.placeholder();
   final Map<String, SessionDetail> sessionDetails = <String, SessionDetail>{};
   bool isRefreshing = false;
@@ -82,6 +93,36 @@ class AppModel extends ChangeNotifier {
     await _prefs.setString(_baseUrlKey, baseUrlString);
   }
 
+  Future<void> updateDefaultExecutionPolicy(String value) async {
+    defaultExecutionPolicy = value;
+    await _prefs.setString(_defaultExecutionPolicyKey, value);
+    notifyListeners();
+  }
+
+  Future<void> updateDefaultModel(String value) async {
+    defaultModel = value;
+    await _prefs.setString(_defaultModelKey, value);
+    notifyListeners();
+  }
+
+  Future<void> updateDefaultReasoning(String value) async {
+    defaultReasoning = value;
+    await _prefs.setString(_defaultReasoningKey, value);
+    notifyListeners();
+  }
+
+  Future<void> updateDefaultSpeed(String value) async {
+    defaultSpeed = value;
+    await _prefs.setString(_defaultSpeedKey, value);
+    notifyListeners();
+  }
+
+  Future<void> updateLocalMode(bool value) async {
+    localMode = value;
+    await _prefs.setBool(_localModeKey, value);
+    notifyListeners();
+  }
+
   Future<void> refreshDashboard() async {
     if (isRefreshing) {
       return;
@@ -112,10 +153,9 @@ class AppModel extends ChangeNotifier {
     if (!supportsApprovalsForSessionId(sessionId)) {
       return <PendingRequestView>[];
     }
-    final approvals = dashboard.approvals
-        .where((item) => item.threadId == sessionId)
-        .toList()
-      ..sort((left, right) => left.createdAt.compareTo(right.createdAt));
+    final approvals =
+        dashboard.approvals.where((item) => item.threadId == sessionId).toList()
+          ..sort((left, right) => left.createdAt.compareTo(right.createdAt));
     return approvals;
   }
 
@@ -279,9 +319,9 @@ class AppModel extends ChangeNotifier {
       );
       await refreshDashboard();
       final session = dashboard.sessions.cast<SessionSummary?>().firstWhere(
-            (item) => item?.id == approval.threadId,
-            orElse: () => null,
-          );
+        (item) => item?.id == approval.threadId,
+        orElse: () => null,
+      );
       if (session != null) {
         await loadSession(session.id);
       }
@@ -321,10 +361,7 @@ class AppModel extends ChangeNotifier {
             scope = null;
         }
 
-        return <String, dynamic>{
-          'permissions': permissions,
-          'scope': scope,
-        };
+        return <String, dynamic>{'permissions': permissions, 'scope': scope};
       case 'userInput':
         final questionId = _firstQuestionId(approval.params) ?? 'reply';
         return <String, dynamic>{
@@ -465,8 +502,9 @@ class AppModel extends ChangeNotifier {
     if (normalized.isEmpty) {
       return;
     }
-    final exists = dashboard.agents
-        .any((item) => item.id == normalized && item.available);
+    final exists = dashboard.agents.any(
+      (item) => item.id == normalized && item.available,
+    );
     if (!exists) {
       return;
     }

@@ -46,8 +46,10 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
     return Scaffold(
       backgroundColor: Palette.canvas,
       appBar: AppBar(
-        title: Text('审批',
-            style: roundedTextStyle(size: 17, weight: FontWeight.w600)),
+        title: Text(
+          '审批',
+          style: roundedTextStyle(size: 17, weight: FontWeight.w600),
+        ),
         centerTitle: true,
       ),
       body: PageScaffold(
@@ -55,20 +57,77 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
           color: Palette.accent,
           onRefresh: model.refreshDashboard,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
             children: <Widget>[
-              PanelCard(
-                compact: true,
-                child: Text(
-                  supportsApprovals
-                      ? '这里处理当前 Agent 发来的命令审批、文件变更审批、权限审批，以及需要你回答的问题。'
-                      : '当前 Agent 不提供审批事件流，这里暂时不会出现待审批项目。',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Palette.mutedInk,
-                    height: 1.45,
+              Row(
+                children: <Widget>[
+                  Text(
+                    '审批中心',
+                    style: roundedTextStyle(size: 19, weight: FontWeight.w700),
                   ),
+                  const Spacer(),
+                  StatusPill(
+                    status: supportsApprovals
+                        ? (approvals.isEmpty ? 'idle' : 'pending')
+                        : 'ended',
+                    waiting: approvals.isNotEmpty,
+                    ended: !supportsApprovals,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              PanelCard(
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: approvals.isEmpty
+                            ? Palette.accent.appOpacity(0.10)
+                            : Palette.warning.appOpacity(0.12),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        '${approvals.length}',
+                        style: roundedTextStyle(
+                          size: 22,
+                          weight: FontWeight.w800,
+                          color: approvals.isEmpty
+                              ? Palette.accent
+                              : Palette.warning,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            approvals.isEmpty ? '没有等待项' : '等待你拍板',
+                            style: roundedTextStyle(
+                              size: 16,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            supportsApprovals
+                                ? '命令、文件变更、权限和输入请求会集中在这里。'
+                                : '当前 Agent 不提供审批事件流。',
+                            style: roundedTextStyle(
+                              size: 12,
+                              weight: FontWeight.w500,
+                              color: Palette.mutedInk,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -85,10 +144,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                   ),
                 )
               else
-                ApprovalList(
-                  approvals: approvals,
-                  showSessionLabel: true,
-                ),
+                ApprovalList(approvals: approvals, showSessionLabel: true),
             ],
           ),
         ),
@@ -135,9 +191,13 @@ class SessionApprovalSheet extends StatelessWidget {
                 child: Scaffold(
                   backgroundColor: Colors.transparent,
                   appBar: AppBar(
-                    title: Text(title,
-                        style: roundedTextStyle(
-                            size: 17, weight: FontWeight.w600)),
+                    title: Text(
+                      title,
+                      style: roundedTextStyle(
+                        size: 17,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
                     centerTitle: true,
                     actions: <Widget>[
                       TextButton(
@@ -145,9 +205,10 @@ class SessionApprovalSheet extends StatelessWidget {
                         child: Text(
                           '关闭',
                           style: roundedTextStyle(
-                              size: 13,
-                              weight: FontWeight.w600,
-                              color: Palette.softBlue),
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: Palette.softBlue,
+                          ),
                         ),
                       ),
                     ],
@@ -171,7 +232,9 @@ class SessionApprovalSheet extends StatelessWidget {
                           )
                         else
                           ApprovalList(
-                              approvals: approvals, showSessionLabel: false),
+                            approvals: approvals,
+                            showSessionLabel: false,
+                          ),
                       ],
                     ),
                   ),
@@ -271,6 +334,7 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
     final approval = widget.approval;
+    final fields = _fieldRows(model, approval);
     return Container(
       padding: widget.embedded ? const EdgeInsets.all(12) : EdgeInsets.zero,
       decoration: widget.embedded
@@ -284,6 +348,27 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
+            children: <Widget>[
+              _KindChip(kind: approval.kind),
+              const Spacer(),
+              if (widget.showSessionLabel)
+                Flexible(
+                  child: Text(
+                    _sessionLabel(model, approval),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: roundedTextStyle(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: Palette.mutedInk,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Expanded(
@@ -292,51 +377,58 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
                   children: <Widget>[
                     Text(
                       _kindTitle(approval.kind),
-                      style:
-                          roundedTextStyle(size: 16, weight: FontWeight.w600),
+                      style: roundedTextStyle(
+                        size: 16,
+                        weight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      approval.summary,
+                      approval.summary.isEmpty
+                          ? _riskSummary(approval)
+                          : approval.summary,
                       style: roundedTextStyle(
-                          size: 13,
-                          weight: FontWeight.w500,
-                          color: Palette.mutedInk,
-                          height: 1.45),
-                    ),
-                    if (widget.showSessionLabel) ...<Widget>[
-                      const SizedBox(height: 6),
-                      Text(
-                        _sessionLabel(model, approval),
-                        style:
-                            roundedTextStyle(size: 12, weight: FontWeight.w500),
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: Palette.mutedInk,
+                        height: 1.45,
                       ),
-                    ],
+                    ),
                     if (approval.reason.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 6),
                       Text(
                         approval.reason,
                         style: roundedTextStyle(
-                            size: 12,
-                            weight: FontWeight.w500,
-                            color: Palette.mutedInk),
+                          size: 12,
+                          weight: FontWeight.w500,
+                          color: Palette.mutedInk,
+                        ),
                       ),
                     ],
                     if (_firstQuestion(approval) != null) ...<Widget>[
                       const SizedBox(height: 6),
                       Text(
                         _firstQuestion(approval)!.question,
-                        style:
-                            roundedTextStyle(size: 12, weight: FontWeight.w500),
+                        style: roundedTextStyle(
+                          size: 12,
+                          weight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              StatusPill(status: approval.kind, waiting: true),
             ],
           ),
+          if (fields.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            ...fields.map(
+              (field) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ApprovalField(label: field.$1, value: field.$2),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (approval.kind == 'userInput')
             _buildUserInputActions(context)
@@ -364,9 +456,9 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
                 onPressed: () async {
                   FocusScope.of(context).unfocus();
                   await context.read<AppModel>().resolve(
-                        approval: widget.approval,
-                        action: ApprovalAction.submitText(option.label),
-                      );
+                    approval: widget.approval,
+                    action: ApprovalAction.submitText(option.label),
+                  );
                 },
               ),
             ),
@@ -384,9 +476,9 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
           onPressed: () async {
             FocusScope.of(context).unfocus();
             await context.read<AppModel>().resolve(
-                  approval: widget.approval,
-                  action: ApprovalAction.submitText(_replyController.text),
-                );
+              approval: widget.approval,
+              action: ApprovalAction.submitText(_replyController.text),
+            );
           },
         ),
       ],
@@ -395,33 +487,67 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
 
   Widget _buildChoiceButtons(BuildContext context) {
     final buttons = _choiceButtons(widget.approval);
+    final primaryButtons = buttons.take(2).toList();
+    final secondaryButtons = buttons.skip(2).toList();
     return Column(
-      children: buttons
-          .map(
-            (button) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ActionButton(
-                title: button.title,
-                background: button.background,
-                foreground: button.foreground,
-                onPressed: () async {
-                  await context.read<AppModel>().resolve(
-                        approval: widget.approval,
-                        action: button.action,
-                      );
-                },
-              ),
-            ),
-          )
-          .toList(),
+      children: <Widget>[
+        Row(
+          children: primaryButtons
+              .map(
+                (button) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionButton(
+                      title: button.title,
+                      background: button.background,
+                      foreground: button.foreground,
+                      onPressed: () async {
+                        await context.read<AppModel>().resolve(
+                          approval: widget.approval,
+                          action: button.action,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        if (secondaryButtons.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: secondaryButtons
+                .map(
+                  (button) => SizedBox(
+                    width: 150,
+                    child: ActionButton(
+                      title: button.title,
+                      background: button.background,
+                      foreground: button.foreground,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      onPressed: () async {
+                        await context.read<AppModel>().resolve(
+                          approval: widget.approval,
+                          action: button.action,
+                        );
+                      },
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ],
     );
   }
 
   String _sessionLabel(AppModel model, PendingRequestView approval) {
     final session = model.dashboard.sessions.cast<SessionSummary?>().firstWhere(
-          (item) => item?.id == approval.threadId,
-          orElse: () => null,
-        );
+      (item) => item?.id == approval.threadId,
+      orElse: () => null,
+    );
     if (session != null) {
       return '会话：${session.displayName}';
     }
@@ -441,6 +567,45 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
       default:
         return kind;
     }
+  }
+
+  String _riskSummary(PendingRequestView approval) {
+    switch (approval.kind) {
+      case 'command':
+        return '即将运行本地命令。确认工作目录、命令内容和网络/文件权限后再允许。';
+      case 'fileChange':
+        return '即将写入或修改文件。确认路径和变更范围后再允许。';
+      case 'permissions':
+        return 'Agent 请求扩大权限范围。移动端建议按本轮或本会话授权。';
+      case 'userInput':
+        return 'Agent 需要你补充输入后才能继续。';
+      default:
+        return '确认风险后再继续。';
+    }
+  }
+
+  List<(String, String)> _fieldRows(
+    AppModel model,
+    PendingRequestView approval,
+  ) {
+    final rows = <(String, String)>[];
+    void add(String label, Object? value) {
+      final text = asString(value).trim();
+      if (text.isNotEmpty) {
+        rows.add((label, text));
+      }
+    }
+
+    add('方法', approval.method);
+    add('工作目录', approval.params['cwd']);
+    add('命令', approval.params['command']);
+    add('路径', approval.params['path']);
+    add('文件', approval.params['file']);
+    add('权限', approval.params['permissions']);
+    if (!widget.showSessionLabel) {
+      add('会话', _sessionLabel(model, approval));
+    }
+    return rows.take(4).toList();
   }
 
   ApprovalQuestion? _firstQuestion(PendingRequestView approval) {
@@ -531,11 +696,11 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
   }
 
   List<_ApprovalChoiceButton> _availableDecisionButtons(
-      PendingRequestView approval) {
-    return asList(approval.params['availableDecisions'])
-        .map(_commandDecisionButton)
-        .whereType<_ApprovalChoiceButton>()
-        .toList();
+    PendingRequestView approval,
+  ) {
+    return asList(
+      approval.params['availableDecisions'],
+    ).map(_commandDecisionButton).whereType<_ApprovalChoiceButton>().toList();
   }
 
   _ApprovalChoiceButton? _commandDecisionButton(dynamic decision) {
@@ -582,12 +747,10 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
     final object = asMap(decision);
     if (object.containsKey('acceptWithExecpolicyAmendment')) {
       return _ApprovalChoiceButton(
-        action: ApprovalAction.decision(
-          <String, dynamic>{
-            'acceptWithExecpolicyAmendment':
-                object['acceptWithExecpolicyAmendment'],
-          },
-        ),
+        action: ApprovalAction.decision(<String, dynamic>{
+          'acceptWithExecpolicyAmendment':
+              object['acceptWithExecpolicyAmendment'],
+        }),
         title: '允许并记住这类命令',
         background: Palette.softBlue,
         foreground: Colors.white,
@@ -601,13 +764,11 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
       final action = asString(amendment['action']);
       final isAllow = action == 'allow';
       return _ApprovalChoiceButton(
-        action: ApprovalAction.decision(
-          <String, dynamic>{
-            'applyNetworkPolicyAmendment': <String, dynamic>{
-              'network_policy_amendment': amendment,
-            },
+        action: ApprovalAction.decision(<String, dynamic>{
+          'applyNetworkPolicyAmendment': <String, dynamic>{
+            'network_policy_amendment': amendment,
           },
-        ),
+        }),
         title: isAllow ? '允许并记住 $host' : '拒绝并记住 $host',
         background: isAllow
             ? Palette.softBlue.appOpacity(0.15)
@@ -637,7 +798,7 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
           'accept',
           'acceptForSession',
           'decline',
-          'cancel'
+          'cancel',
         ];
       case 'permissions':
         return const <String>['session', 'turn', 'decline'];
@@ -659,4 +820,83 @@ class _ApprovalChoiceButton {
   final String title;
   final Color background;
   final Color foreground;
+}
+
+class _KindChip extends StatelessWidget {
+  const _KindChip({required this.kind});
+
+  final String kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (kind) {
+      'command' => Palette.warning,
+      'fileChange' => Palette.softBlue,
+      'permissions' => Palette.accent,
+      'userInput' => Palette.warning,
+      _ => Palette.mutedInk,
+    };
+    final label = switch (kind) {
+      'command' => 'Shell 权限',
+      'fileChange' => '文件变更',
+      'permissions' => '权限',
+      'userInput' => '需要回复',
+      _ => kind,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: tone.appOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: roundedTextStyle(size: 11, weight: FontWeight.w800, color: tone),
+      ),
+    );
+  }
+}
+
+class _ApprovalField extends StatelessWidget {
+  const _ApprovalField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: Palette.ink.appOpacity(0.055),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: roundedTextStyle(
+              size: 10,
+              weight: FontWeight.w800,
+              color: Palette.faintInk,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: roundedTextStyle(
+              size: 12,
+              weight: FontWeight.w600,
+              color: Palette.ink,
+              fontFamily: label == '命令' || label == '工作目录' ? 'monospace' : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

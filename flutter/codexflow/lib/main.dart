@@ -18,10 +18,7 @@ Future<void> main() async {
 }
 
 class CodexFlowApp extends StatelessWidget {
-  const CodexFlowApp({
-    super.key,
-    required this.prefs,
-  });
+  const CodexFlowApp({super.key, required this.prefs});
 
   final SharedPreferences prefs;
 
@@ -52,6 +49,22 @@ class CodexFlowApp extends StatelessWidget {
           bottomSheetTheme: const BottomSheetThemeData(
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
+          ),
+          navigationBarTheme: NavigationBarThemeData(
+            height: 68,
+            backgroundColor: Palette.canvas.appOpacity(0.88),
+            indicatorColor: Palette.ink.appOpacity(0.07),
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              return roundedTextStyle(
+                size: 11,
+                weight: states.contains(WidgetState.selected)
+                    ? FontWeight.w700
+                    : FontWeight.w600,
+                color: states.contains(WidgetState.selected)
+                    ? Palette.ink
+                    : Palette.mutedInk,
+              );
+            }),
           ),
           dividerColor: Colors.transparent,
         ),
@@ -101,13 +114,8 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Palette.canvas,
-      body: IndexedStack(
-        index: _index,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Palette.panelStrong,
-        indicatorColor: Palette.softBlue.appOpacity(0.12),
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const <NavigationDestination>[
@@ -119,10 +127,7 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.checklist_rounded),
             label: '审批',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.tune_rounded),
-            label: '设置',
-          ),
+          NavigationDestination(icon: Icon(Icons.tune_rounded), label: '设置'),
         ],
       ),
     );

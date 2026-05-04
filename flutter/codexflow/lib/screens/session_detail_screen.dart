@@ -164,8 +164,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         : model.capabilitiesForSession(summary);
     final supportsApprovals = capabilities.supportsApprovals;
     final supportsInterruptTurn = capabilities.supportsInterruptTurn;
-    final supportsResume =
-        summary == null ? capabilities.supportsResume : model.canResumeSession(summary);
+    final supportsResume = summary == null
+        ? capabilities.supportsResume
+        : model.canResumeSession(summary);
     final orderedTurns = detail == null
         ? const <TurnDetail>[]
         : detail.turns.reversed.toList();
@@ -176,8 +177,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     final recentTurns = orderedTurns
         .where((turn) => turn.id != activeTurn?.id)
         .toList();
-    final sessionApprovals =
-        supportsApprovals ? _sessionApprovals(model) : <PendingRequestView>[];
+    final sessionApprovals = supportsApprovals
+        ? _sessionApprovals(model)
+        : <PendingRequestView>[];
     final activeTurnApprovals = activeTurn == null
         ? const <PendingRequestView>[]
         : sessionApprovals
@@ -203,18 +205,21 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           color: Palette.accent,
           onRefresh: _refreshSessionPage,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
             children: <Widget>[
               if (model.operationNotice.isNotEmpty) ...<Widget>[
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: (model.operationNoticeIsError
-                            ? Palette.danger
-                            : Palette.success)
-                        .appOpacity(0.08),
+                    color:
+                        (model.operationNoticeIsError
+                                ? Palette.danger
+                                : Palette.success)
+                            .appOpacity(0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -231,12 +236,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 const SizedBox(height: 12),
               ],
               if (summary != null) ...<Widget>[
+                _SessionDetailHeader(summary: summary),
+                const SizedBox(height: 12),
                 _SummaryCard(
                   summary: summary,
                   supportsApprovals: supportsApprovals,
                 ),
                 const SizedBox(height: 12),
-                if (supportsApprovals && remainingSessionApprovals.isNotEmpty) ...<Widget>[
+                if (supportsApprovals &&
+                    remainingSessionApprovals.isNotEmpty) ...<Widget>[
                   PanelCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,45 +285,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     supportsResume: supportsResume,
                     onPressed: () async {
                       await model.resumeSession(summary);
-                      await _refreshSessionPage();
-                    },
-                  )
-                else
-                  _ComposerCard(
-                    summary: summary,
-                    promptController: _promptController,
-                    attachments: _attachments,
-                    isUploadingImage: _isUploadingImage,
-                    onPickImage: _pickAndUploadImage,
-                    onRemoveAttachment: (String id) {
-                      setState(() {
-                        _attachments.removeWhere((item) => item.id == id);
-                      });
-                    },
-                    onSubmit: () async {
-                      final sent = await model.submitPrompt(
-                        session: summary,
-                        prompt: _promptController.text.trim(),
-                        imageUploadIds: _attachments
-                            .map((item) => item.uploadId)
-                            .toList(),
-                      );
-                      if (sent) {
-                        _promptController.clear();
-                        setState(() {
-                          _attachments.clear();
-                        });
-                      }
-                    },
-                    supportsInterruptTurn: supportsInterruptTurn,
-                    onInterrupt: summary.lastTurnStatus == 'inProgress'
-                            && supportsInterruptTurn
-                        ? () async {
-                            await model.interrupt(summary);
-                          }
-                        : null,
-                    onEnd: () async {
-                      await model.endSession(summary);
                       await _refreshSessionPage();
                     },
                   ),
@@ -392,6 +361,55 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     ],
                   ),
                 ),
+              if (summary != null &&
+                  !summary.isEnded &&
+                  summary.loaded) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  '继续输入',
+                  style: roundedTextStyle(size: 16, weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                _ComposerCard(
+                  summary: summary,
+                  promptController: _promptController,
+                  attachments: _attachments,
+                  isUploadingImage: _isUploadingImage,
+                  onPickImage: _pickAndUploadImage,
+                  onRemoveAttachment: (String id) {
+                    setState(() {
+                      _attachments.removeWhere((item) => item.id == id);
+                    });
+                  },
+                  onSubmit: () async {
+                    final sent = await model.submitPrompt(
+                      session: summary,
+                      prompt: _promptController.text.trim(),
+                      imageUploadIds: _attachments
+                          .map((item) => item.uploadId)
+                          .toList(),
+                    );
+                    if (sent) {
+                      _promptController.clear();
+                      setState(() {
+                        _attachments.clear();
+                      });
+                    }
+                  },
+                  supportsInterruptTurn: supportsInterruptTurn,
+                  onInterrupt:
+                      summary.lastTurnStatus == 'inProgress' &&
+                          supportsInterruptTurn
+                      ? () async {
+                          await model.interrupt(summary);
+                        }
+                      : null,
+                  onEnd: () async {
+                    await model.endSession(summary);
+                    await _refreshSessionPage();
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -410,11 +428,60 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }
 }
 
+class _SessionDetailHeader extends StatelessWidget {
+  const _SessionDetailHeader({required this.summary});
+
+  final SessionSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        AgentMark(agentId: summary.agentId),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                summary.displayName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: roundedTextStyle(size: 20, weight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  StatusPill(
+                    status: summary.status,
+                    waiting: summary.hasWaitingState,
+                    ended: summary.isEnded,
+                  ),
+                  CapsuleTag(
+                    title: '链路',
+                    value: summary.isClaudeSession
+                        ? (summary.runtimeAvailable ? 'Runtime' : 'History')
+                        : 'Codex',
+                  ),
+                  CapsuleTag(
+                    title: '分支',
+                    value: summary.branch.isEmpty ? '未识别' : summary.branch,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.summary,
-    required this.supportsApprovals,
-  });
+  const _SummaryCard({required this.summary, required this.supportsApprovals});
 
   final SessionSummary summary;
   final bool supportsApprovals;
@@ -473,25 +540,23 @@ class _SummaryCard extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: <Widget>[
-                CapsuleTag(
-                  title: '托管',
-                  value: summary.loaded ? '已接管' : '未接管',
-                ),
+                CapsuleTag(title: '托管', value: summary.loaded ? '已接管' : '未接管'),
                 if (summary.isClaudeSession) ...<Widget>[
                   const SizedBox(width: 8),
                   CapsuleTag(
                     title: '链路',
                     value: summary.runtimeAvailable ? 'Runtime' : 'History',
                   ),
-                  if (summary.loaded && summary.runtimeAttachMode.isNotEmpty) ...<Widget>[
+                  if (summary.loaded &&
+                      summary.runtimeAttachMode.isNotEmpty) ...<Widget>[
                     const SizedBox(width: 8),
                     CapsuleTag(
                       title: '接管',
                       value: summary.runtimeAttachMode == 'resumed_existing'
                           ? '现有 Runtime'
                           : (summary.runtimeAttachMode == 'opened_from_history'
-                              ? '历史新开'
-                              : '新建 Runtime'),
+                                ? '历史新开'
+                                : '新建 Runtime'),
                     ),
                   ],
                 ],
@@ -652,13 +717,15 @@ class _TakeoverCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ActionButton(
-            title: (!summary.isEnded &&
+            title:
+                (!summary.isEnded &&
                     summary.isClaudeSession &&
                     !summary.runtimeAvailable)
                 ? '当前无 Runtime'
                 : (summary.isEnded ? '重新接管会话' : 'Resume 并接管会话'),
-            background:
-                supportsResume ? Palette.softBlue : Palette.mutedInk.appOpacity(0.35),
+            background: supportsResume
+                ? Palette.softBlue
+                : Palette.mutedInk.appOpacity(0.35),
             foreground: Colors.white,
             fontSize: 14,
             enabled: supportsResume,
@@ -734,6 +801,7 @@ class _ComposerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appModel = context.watch<AppModel>();
     final isSteering = summary.lastTurnStatus == 'inProgress';
     final accentTone = isSteering ? Palette.accent2 : Palette.accent;
     return ListenableBuilder(
@@ -877,6 +945,28 @@ class _ComposerCard extends StatelessWidget {
                 autocapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  CapsuleTag(
+                    title: '策略',
+                    value: _policyLabel(appModel.defaultExecutionPolicy),
+                  ),
+                  CapsuleTag(title: '模型', value: appModel.defaultModel),
+                  CapsuleTag(
+                    title: '推理',
+                    value: _reasoningLabel(appModel.defaultReasoning),
+                  ),
+                  CapsuleTag(
+                    title: '模式',
+                    value: appModel.localMode ? '本地' : '远程',
+                  ),
+                  if (summary.branch.isNotEmpty)
+                    CapsuleTag(title: '分支', value: summary.branch),
+                ],
+              ),
+              const SizedBox(height: 12),
               ActionButton(
                 title: isSteering ? '发送 steer' : '开始这一轮',
                 background: accentTone,
@@ -938,7 +1028,7 @@ class _ComposerCard extends StatelessWidget {
                     FocusScope.of(context).unfocus();
                     await onEnd();
                   },
-                  ),
+                ),
               if (isSteering && !supportsInterruptTurn) ...<Widget>[
                 const SizedBox(height: 8),
                 Text(
@@ -955,6 +1045,30 @@ class _ComposerCard extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _policyLabel(String value) {
+    switch (value) {
+      case 'ask':
+        return '每次确认';
+      case 'full':
+        return '完全权限';
+      default:
+        return '自动审查';
+    }
+  }
+
+  String _reasoningLabel(String value) {
+    switch (value) {
+      case 'low':
+        return '低';
+      case 'high':
+        return '高';
+      case 'xhigh':
+        return '超高';
+      default:
+        return '中';
+    }
   }
 }
 

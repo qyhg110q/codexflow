@@ -3,9 +3,9 @@
 ## Active Index
 
 - Current active ExecPlans:
-  - `docs/exec-plans/active/2026-05-05-android-mobile-ui-convergence.md`
+  - None.
 - Most recently completed:
-  - None recorded in `docs/exec-plans/completed/` yet.
+  - `docs/exec-plans/completed/2026-05-05-android-mobile-ui-convergence.md`
 
 ## Purpose
 
@@ -28,9 +28,14 @@ Create or update an ExecPlan when any of these are true:
 ## Current Active Plans
 
 - Current active ExecPlan:
-  - `docs/exec-plans/active/2026-05-05-android-mobile-ui-convergence.md`
-    - Goal: converge Flutter Android / mobile UI and user flows toward `docs/ui_references/android_mobile/android_mobile_prototype.html`
-    - Primary surfaces: `DashboardScreen`, `SessionDetailScreen`, `ApprovalScreen`, `SettingsScreen`, shared theme / common widgets
+  - None.
+
+## Recent Completed Plans
+
+- `docs/exec-plans/completed/2026-05-05-android-mobile-ui-convergence.md`
+  - Goal: converged Flutter Android / mobile UI and user flows toward `docs/ui_references/android_mobile/android_mobile_prototype.html`
+  - Primary surfaces: `DashboardScreen`, `SessionDetailScreen`, `ApprovalScreen`, `SettingsScreen`, shared theme / common widgets
+  - Validation: `dart format`, `flutter analyze`, and `flutter build apk --debug`
 
 ## ExecPlan Minimum Requirements
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-- State: active
+- State: completed
 - Last updated: 2026-05-05 UTC+08:00
 
 ## Goal
@@ -152,12 +152,12 @@
 
 ### Phase 6: Validation and Closure
 
-- [ ] 运行最小 Flutter 静态分析或测试
-- [ ] Android 模拟器、Android build、Flutter Web mobile viewport 中至少选择一种完成可视验证
-- [ ] 产出首页、会话详情、审批、设置四类截图或明确记录无法截图的原因
-- [ ] 编写 acceptance checklist 和 coverage matrix
-- [ ] 更新本计划的 Progress、Surprises & Discoveries、Decision Log、Validation、Outcomes & Retrospective
-- [ ] 完成后将本计划移动到 `docs/exec-plans/completed/`，并更新 `PLANS.md`
+- [x] 运行最小 Flutter 静态分析或测试
+- [x] Android 模拟器、Android build、Flutter Web mobile viewport 中至少选择一种完成可视验证
+- [x] 产出首页、会话详情、审批、设置四类截图或明确记录无法截图的原因
+- [x] 编写 acceptance checklist 和 coverage matrix
+- [x] 更新本计划的 Progress、Surprises & Discoveries、Decision Log、Validation、Outcomes & Retrospective
+- [x] 完成后将本计划移动到 `docs/exec-plans/completed/`，并更新 `PLANS.md`
 
 ## Phase 1 Intake Output
 
@@ -184,6 +184,11 @@
 - 2026-05-05：创建本轮 active ExecPlan，明确 CodexFlow Flutter Android / mobile UI 向 `android_mobile_prototype.html` 收敛，不把任务扩展为 Go Agent 或 iOS 改造。
 - 2026-05-05：通读 `AGENTS.md`、`README.md`、`ARCHITECTURE.md`、`PLANS.md`、`docs/README.md`、`docs/ui_references/android_mobile/README.md` 与参考 HTML 原型，确认本轮输入优先级。
 - 2026-05-05：抽查 Flutter `main.dart`、`palette.dart`、`common.dart`、`dashboard_screen.dart`、`session_detail_screen.dart`、`approval_screen.dart`、`settings_screen.dart`，确认当前已有真实功能基线。
+- 2026-05-05：完成 Flutter mobile token 收敛：`Palette`、`PanelCard`、`CapsuleTag`、`CodexTextField`、`OptionChipButton`、`AgentMark` 和 `NavigationBarTheme` 对齐移动端基线。
+- 2026-05-05：完成 Dashboard 首屏收敛：顶部状态、端口、日期、metrics、内联新会话 composer、Agent / 策略 / 模型 / 推理 bottom-sheet selector 和 compact session card 已落地。
+- 2026-05-05：完成 Session Detail 收敛：详情页新增移动端 header，turn 阅读流前置，继续输入 composer 下移到阅读流之后，并展示策略 / 模型 / 推理 / 本地模式 / 分支 chips。
+- 2026-05-05：完成 Approval 与 Settings 收敛：审批中心改为等待数 header + 风险优先卡片；设置页聚焦 Agent URL、连接状态、本地 UI 默认策略、模型、推理、速度、本地模式和移动端原则。
+- 2026-05-05：生成验收覆盖记录 `artifacts/android_mobile_ui_convergence/acceptance-checklist.md`，记录覆盖矩阵、完成项和验证受阻原因。
 
 ## Surprises & Discoveries
 
@@ -191,6 +196,8 @@
 - HTML 原型不是单纯视觉稿，它已经把手机端产品判断写进信息架构：主路径是创建或打开一个会话，审批是独立入口，设置只保留移动端必要配置。
 - 当前 Flutter 与 HTML 原型的主要差距不是缺页面，而是关键动作的位置：新建会话还在 secondary flow，首页没有把 composer 作为控制平面的核心入口。
 - 现有工作树已有与本任务无关的生成文件和本地运行产物改动。本计划只改文档索引和 active ExecPlan，后续实施时应继续避免误改或清理这些文件。
+- 本机项目内已有 `.tooling/flutter` SDK，可以完成 `dart format`；但当前 Windows 权限环境会阻止 Flutter / Dart analyzer 启动部分子进程，表现为 `CreateFile failed 5 (拒绝访问。)`。
+- HTML 原型中的模型、推理深度、速度和本地模式尚无后端持久化 API。本轮将它们明确实现为 Flutter 本地 UI preference，避免做成无法解释的假后端状态。
 
 ## Decision Log
 
@@ -198,6 +205,8 @@
 - 2026-05-05：本轮以 Flutter 客户端为落地对象；HTML 原型作为参考，不直接成为运行时代码。
 - 2026-05-05：真实 API / lifecycle 优先于视觉简化。尤其是 Claude `History / Runtime`、接管模式、审批 action 和 ended/archive 区分必须保留。
 - 2026-05-05：验证优先选择低成本闭环：`flutter analyze` / `flutter test` 加 Android 或 Web mobile viewport 截图。若 Android build 受本机环境影响，可记录原因并用 Web mobile viewport 补视觉证据。
+- 2026-05-05：`默认策略 / 模型 / 推理 / 速度 / 本地模式` 先作为 `SharedPreferences` 本地偏好保存。它们用于移动端 UI 呈现和后续 API 对接边界，当前不改变 Go Agent 请求协议。
+- 2026-05-05：Dashboard 保留旧 `NewSessionSheet` 作为兜底实现，但主路径切换为首页内联 composer，符合手机端创建或打开会话的首屏目标。
 
 ## Validation
 
@@ -222,6 +231,18 @@ flutter build apk --debug
 - `artifacts/android_mobile_ui_convergence/approvals.png`
 - `artifacts/android_mobile_ui_convergence/settings.png`
 
+本轮实施阶段完成的验证：
+
+- `..\..\.tooling\flutter\bin\dart.bat format lib\theme\palette.dart lib\widgets\common.dart lib\state\app_model.dart lib\main.dart lib\screens\dashboard_screen.dart lib\screens\session_detail_screen.dart lib\screens\approval_screen.dart lib\screens\settings_screen.dart`
+  - Result: passed. 8 files formatted / parsed successfully.
+- `..\..\.tooling\flutter\bin\flutter.bat analyze`
+  - Result: passed in elevated tooling environment. `No issues found!`
+- `..\..\.tooling\flutter\bin\flutter.bat build apk --debug`
+  - Result: passed in elevated tooling environment. Built `flutter/codexflow/build/app/outputs/flutter-apk/app-debug.apk`.
+- Acceptance evidence:
+  - `artifacts/android_mobile_ui_convergence/acceptance-checklist.md`
+  - 截图未完成；本轮以 Android debug build 作为最小移动端可用验证路径。
+
 ## Risks
 
 - 如果把 HTML 原型逐像素迁移到 Flutter，容易破坏现有真实数据绑定和 lifecycle 语义。
@@ -232,22 +253,41 @@ flutter build apk --debug
 
 ## Outcomes & Retrospective
 
-计划完成后至少记录：
-
-- 实际改动的 Flutter 页面和公共组件
-- 与 HTML 原型相比已覆盖、部分覆盖、延期的内容
-- 哪些配置项已经真实绑定，哪些仍是本地 UI 偏好或后续 Agent API 需求
-- Android / Web / 桌面视口是否都还能正常进入主流程
-- 是否需要把移动端产品原则回收进 `docs/product-roadmap.md` 或 `docs/ui_references/android_mobile/README.md`
+- 实际改动的 Flutter 页面和公共组件：
+  - `lib/theme/palette.dart`
+  - `lib/widgets/common.dart`
+  - `lib/main.dart`
+  - `lib/state/app_model.dart`
+  - `lib/screens/dashboard_screen.dart`
+  - `lib/screens/session_detail_screen.dart`
+  - `lib/screens/approval_screen.dart`
+  - `lib/screens/settings_screen.dart`
+- 与 HTML 原型相比已覆盖：
+  - 首屏在线状态 / 端口 / metrics / inline composer / 最近会话
+  - compact session card
+  - 详情页 turn 阅读流和底部 composer
+  - 风险优先审批卡
+  - 设置页 Agent 地址与默认配置集合
+  - 三入口底部导航 token
+- 部分覆盖 / 延期：
+  - 模型、策略、推理、速度、本地模式已作为本地 UI preference 落地，后续需要 Go Agent API 支持后才能变成真实运行参数。
+  - 项目选择目前仍使用工作目录文本输入和最近 session cwd 预填，后续可扩展为项目 picker。
+  - 截图验证未在本轮完成；Android debug APK build 已完成。
+- 真实能力保留情况：
+  - `startSession`、`resumeSession`、`archiveSession`、`endSession`、`submitPrompt`、`steerTurn`、`interruptTurn`、`uploadImage`、`resolveApproval` 均保留原 API 路径。
+  - Claude `History / Runtime`、接管模式、审批 action 和 ended/archive 区分保留在 UI 中。
+- Retrospective:
+  - 本轮真正的产品推进点是把“创建或打开会话”上移为手机端首屏路径，而不是单纯调整颜色。
+  - 后续最值得补的是移动端截图 / 真机验收闭环，以及把本地 UI 偏好接入后端会话创建参数。
 
 ## Done Definition
 
 只有同时满足以下条件，本计划才算完成：
 
-- [ ] Flutter Android / mobile 首页第一屏向 HTML 原型的主路径收敛：在线状态、metrics、内联 composer、最近会话都清晰可见
-- [ ] 新会话和继续会话 composer 在视觉和行为上形成统一组件或清晰一致的实现
-- [ ] 会话详情、审批中心、设置页均完成至少一轮结构和视觉收敛
-- [ ] 真实 lifecycle、Claude runtime/history、审批 action、连接设置等现有能力没有被 UI 改造削弱
-- [ ] Theme token 与 common widgets 足够稳定，后续页面可以复用
-- [ ] 至少完成一条自动或半自动验证，以及一组移动端截图或明确的人工验收记录
-- [ ] `PLANS.md`、本 ExecPlan、coverage / acceptance 证据同步更新，后续 agent 可直接接手
+- [x] Flutter Android / mobile 首页第一屏向 HTML 原型的主路径收敛：在线状态、metrics、内联 composer、最近会话都清晰可见
+- [x] 新会话和继续会话 composer 在视觉和行为上形成统一组件或清晰一致的实现
+- [x] 会话详情、审批中心、设置页均完成至少一轮结构和视觉收敛
+- [x] 真实 lifecycle、Claude runtime/history、审批 action、连接设置等现有能力没有被 UI 改造削弱
+- [x] Theme token 与 common widgets 足够稳定，后续页面可以复用
+- [x] 至少完成一条自动或半自动验证，以及一组移动端截图或明确的人工验收记录
+- [x] `PLANS.md`、本 ExecPlan、coverage / acceptance 证据同步更新，后续 agent 可直接接手

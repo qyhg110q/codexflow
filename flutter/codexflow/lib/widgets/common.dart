@@ -37,11 +37,11 @@ class AtmosphereBackground extends StatelessWidget {
         Align(
           alignment: Alignment.topCenter,
           child: Container(
-            height: 180,
+            height: 220,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: <Color>[
-                  Color.fromRGBO(56, 115, 181, 0.05),
+                  Color.fromRGBO(53, 116, 183, 0.08),
                   Colors.transparent,
                 ],
                 begin: Alignment.topCenter,
@@ -50,61 +50,13 @@ class AtmosphereBackground extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          right: -10,
-          top: -120,
-          child: _BlurCircle(
-            color: Palette.accent.appOpacity(0.05),
-            size: 160,
-          ),
-        ),
-        Positioned(
-          left: -20,
-          top: -40,
-          child: _BlurCircle(
-            color: Palette.accent2.appOpacity(0.05),
-            size: 140,
-          ),
-        ),
       ],
     );
   }
 }
 
-class _BlurCircle extends StatelessWidget {
-  const _BlurCircle({
-    required this.color,
-    required this.size,
-  });
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: color,
-            blurRadius: 20,
-            spreadRadius: 12,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class PageScaffold extends StatelessWidget {
-  const PageScaffold({
-    super.key,
-    required this.child,
-  });
+  const PageScaffold({super.key, required this.child});
 
   final Widget child;
 
@@ -120,18 +72,14 @@ class PageScaffold extends StatelessWidget {
 }
 
 class PanelCard extends StatelessWidget {
-  const PanelCard({
-    super.key,
-    required this.child,
-    this.compact = false,
-  });
+  const PanelCard({super.key, required this.child, this.compact = false});
 
   final Widget child;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final radius = compact ? 16.0 : 18.0;
+    final radius = compact ? 16.0 : 22.0;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(compact ? 14 : 16),
@@ -141,9 +89,9 @@ class PanelCard extends StatelessWidget {
         border: Border.all(color: Palette.line),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.04),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+            color: Color.fromRGBO(31, 36, 41, 0.08),
+            blurRadius: 28,
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -182,10 +130,7 @@ class MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: roundedTextStyle(
-              size: 24,
-              weight: FontWeight.w700,
-            ),
+            style: roundedTextStyle(size: 24, weight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -195,10 +140,7 @@ class MetricCard extends StatelessWidget {
               color: tone.appOpacity(0.16),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Container(
-                  width: 28,
-                  color: tone,
-                ),
+                child: Container(width: 28, color: tone),
               ),
             ),
           ),
@@ -209,11 +151,7 @@ class MetricCard extends StatelessWidget {
 }
 
 class CapsuleTag extends StatelessWidget {
-  const CapsuleTag({
-    super.key,
-    required this.title,
-    required this.value,
-  });
+  const CapsuleTag({super.key, required this.title, required this.value});
 
   final String title;
   final String value;
@@ -223,8 +161,8 @@ class CapsuleTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Palette.shell,
-        borderRadius: BorderRadius.circular(10),
+        color: Palette.ink.appOpacity(0.055),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -274,11 +212,7 @@ class StatusPill extends StatelessWidget {
       ),
       child: Text(
         _label,
-        style: roundedTextStyle(
-          size: 11,
-          weight: FontWeight.w700,
-          color: tone,
-        ),
+        style: roundedTextStyle(size: 11, weight: FontWeight.w700, color: tone),
       ),
     );
   }
@@ -336,10 +270,7 @@ class StatusPill extends StatelessWidget {
 }
 
 class AgentStatusBadge extends StatelessWidget {
-  const AgentStatusBadge({
-    super.key,
-    required this.connected,
-  });
+  const AgentStatusBadge({super.key, required this.connected});
 
   final bool connected;
 
@@ -358,10 +289,7 @@ class AgentStatusBadge extends StatelessWidget {
           Container(
             width: 7,
             height: 7,
-            decoration: BoxDecoration(
-              color: tone,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
@@ -491,9 +419,12 @@ class CodexTextField extends StatelessWidget {
           weight: FontWeight.w500,
           color: Palette.mutedInk,
         ),
-        filled: false,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
+        filled: true,
+        fillColor: Palette.surfaceStrong,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 13,
+          vertical: 13,
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Palette.line),
@@ -501,6 +432,97 @@ class CodexTextField extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Palette.softBlue.appOpacity(0.35)),
+        ),
+      ),
+    );
+  }
+}
+
+class OptionChipButton extends StatelessWidget {
+  const OptionChipButton({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Palette.ink.appOpacity(0.055),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(icon, size: 14, color: Palette.mutedInk),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                '$label $value',
+                style: roundedTextStyle(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: Palette.mutedInk,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 14,
+                color: Palette.faintInk,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AgentMark extends StatelessWidget {
+  const AgentMark({super.key, required this.agentId});
+
+  final String agentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isClaude = agentId == 'claude';
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isClaude
+            ? Palette.warning.appOpacity(0.13)
+            : Palette.softBlue.appOpacity(0.13),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: isClaude
+              ? Palette.warning.appOpacity(0.18)
+              : Palette.softBlue.appOpacity(0.18),
+        ),
+      ),
+      child: Text(
+        isClaude ? 'CL' : 'CX',
+        style: roundedTextStyle(
+          size: 12,
+          weight: FontWeight.w800,
+          color: isClaude ? Palette.warning : Palette.softBlue,
         ),
       ),
     );
@@ -538,10 +560,7 @@ class HeadTailExcerptBlock extends StatelessWidget {
 }
 
 class HeadTailExcerpt {
-  const HeadTailExcerpt({
-    required this.head,
-    required this.tail,
-  });
+  const HeadTailExcerpt({required this.head, required this.tail});
 
   final String head;
   final String? tail;
@@ -582,10 +601,7 @@ String normalizedDisplayText(String raw) {
 }
 
 class MarkdownBodyBlock extends StatelessWidget {
-  const MarkdownBodyBlock({
-    super.key,
-    required this.raw,
-  });
+  const MarkdownBodyBlock({super.key, required this.raw});
 
   final String raw;
 
@@ -598,17 +614,36 @@ class MarkdownBodyBlock extends StatelessWidget {
       softLineBreak: true,
       styleSheet: MarkdownStyleSheet(
         p: roundedTextStyle(
-            size: 12, weight: FontWeight.w500, color: Palette.ink, height: 1.5),
+          size: 12,
+          weight: FontWeight.w500,
+          color: Palette.ink,
+          height: 1.5,
+        ),
         h1: roundedTextStyle(
-            size: 17, weight: FontWeight.w700, color: Palette.ink),
+          size: 17,
+          weight: FontWeight.w700,
+          color: Palette.ink,
+        ),
         h2: roundedTextStyle(
-            size: 16, weight: FontWeight.w600, color: Palette.ink),
+          size: 16,
+          weight: FontWeight.w600,
+          color: Palette.ink,
+        ),
         h3: roundedTextStyle(
-            size: 14, weight: FontWeight.w600, color: Palette.ink),
+          size: 14,
+          weight: FontWeight.w600,
+          color: Palette.ink,
+        ),
         blockquote: roundedTextStyle(
-            size: 12, weight: FontWeight.w500, color: Palette.mutedInk),
+          size: 12,
+          weight: FontWeight.w500,
+          color: Palette.mutedInk,
+        ),
         listBullet: roundedTextStyle(
-            size: 12, weight: FontWeight.w700, color: Palette.accent),
+          size: 12,
+          weight: FontWeight.w700,
+          color: Palette.accent,
+        ),
         code: roundedTextStyle(
           size: 11,
           weight: FontWeight.w500,
@@ -622,9 +657,7 @@ class MarkdownBodyBlock extends StatelessWidget {
         blockquoteDecoration: BoxDecoration(
           color: Palette.softBlue.appOpacity(0.06),
           borderRadius: BorderRadius.circular(8),
-          border: Border(
-            left: BorderSide(color: Palette.softBlue, width: 3),
-          ),
+          border: Border(left: BorderSide(color: Palette.softBlue, width: 3)),
         ),
       ),
     );
