@@ -1678,6 +1678,12 @@ func (a *Agent) updateClaudeTurnProgress(threadID, turnID, assistantText string)
 		}
 		record.Thread.Turns[idx].Items = items
 		a.store.RecordTurn(threadID, record.Thread.Turns[idx])
+		a.broker.Publish("turn.agentMessage.updated", map[string]string{
+			"threadId": threadID,
+			"turnId":   turnID,
+			"itemId":   turnID + "-assistant-live",
+			"text":     assistantText,
+		})
 		return
 	}
 }
@@ -1747,6 +1753,17 @@ func (a *Agent) finalizeClaudeToolCalls(threadID, turnID string, failed bool) {
 		}
 		if changed {
 			a.store.RecordTurn(threadID, record.Thread.Turns[idx])
+			for _, item := range record.Thread.Turns[idx].Items {
+				itemType := toString(item["type"])
+				if itemType != "commandExecution" && itemType != "fileChange" && itemType != "dynamicToolCall" && itemType != "collabAgentToolCall" {
+					continue
+				}
+				a.broker.Publish("turn.item.updated", map[string]any{
+					"threadId": threadID,
+					"turnId":   turnID,
+					"item":     item,
+				})
+			}
 		}
 		return
 	}
@@ -1771,11 +1788,21 @@ func (a *Agent) upsertClaudeTurnItem(threadID, turnID string, item map[string]an
 				items[itemIdx] = item
 				record.Thread.Turns[idx].Items = items
 				a.store.RecordTurn(threadID, record.Thread.Turns[idx])
+				a.broker.Publish("turn.item.updated", map[string]any{
+					"threadId": threadID,
+					"turnId":   turnID,
+					"item":     item,
+				})
 				return
 			}
 		}
 		record.Thread.Turns[idx].Items = append(items, item)
 		a.store.RecordTurn(threadID, record.Thread.Turns[idx])
+		a.broker.Publish("turn.item.updated", map[string]any{
+			"threadId": threadID,
+			"turnId":   turnID,
+			"item":     item,
+		})
 		return
 	}
 }
@@ -1797,6 +1824,11 @@ func (a *Agent) updateClaudeTurnItem(threadID, turnID, itemID string, mutate fun
 			mutate(item)
 			record.Thread.Turns[idx].Items[itemIdx] = item
 			a.store.RecordTurn(threadID, record.Thread.Turns[idx])
+			a.broker.Publish("turn.item.updated", map[string]any{
+				"threadId": threadID,
+				"turnId":   turnID,
+				"item":     item,
+			})
 			return
 		}
 		return

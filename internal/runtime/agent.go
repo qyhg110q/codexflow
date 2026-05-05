@@ -763,31 +763,45 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 		var payload codex.ThreadStartedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.UpsertThread(payload.Thread)
+			a.broker.Publish("session.started", toSessionStartedPayload(payload.Thread))
 		}
 	case "thread/status/changed":
 		var payload codex.ThreadStatusChangedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.UpdateThreadStatus(payload.ThreadID, payload.Status)
+			a.broker.Publish("session.status.changed", payload)
 		}
 	case "turn/started":
 		var payload codex.TurnStartedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordTurn(payload.ThreadID, payload.Turn)
+			a.broker.Publish("turn.started", map[string]string{
+				"threadId": payload.ThreadID,
+				"turnId":   payload.Turn.ID,
+				"status":   payload.Turn.Status,
+			})
 		}
 	case "turn/completed":
 		var payload codex.TurnCompletedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordTurn(payload.ThreadID, payload.Turn)
+			a.broker.Publish("turn.completed", map[string]string{
+				"threadId": payload.ThreadID,
+				"turnId":   payload.Turn.ID,
+				"status":   payload.Turn.Status,
+			})
 		}
 	case "turn/diff/updated":
 		var payload codex.TurnDiffUpdatedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordDiff(payload.ThreadID, payload.TurnID, payload.Diff)
+			a.broker.Publish("turn.diff.updated", payload)
 		}
 	case "turn/plan/updated":
 		var payload codex.TurnPlanUpdatedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordPlan(payload)
+			a.broker.Publish("turn.plan.updated", payload)
 		}
 	case "item/started":
 		var payload codex.ItemStartedNotification
@@ -828,6 +842,14 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 func looksLikeAgentMessageDelta(method string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(method, "_", ""))
 	return strings.Contains(normalized, "agentmessage") && strings.Contains(normalized, "delta")
+}
+
+func toSessionStartedPayload(thread codex.Thread) map[string]string {
+	return map[string]string{
+		"threadId": thread.ID,
+		"id":       thread.ID,
+		"status":   thread.Status.Type,
+	}
 }
 
 func (a *Agent) handleServerRequest(ctx context.Context, request codex.ServerRequest) {

@@ -151,20 +151,46 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }
 
   void _startEventStream() {
-    final baseUrl = context.read<AppModel>().baseUrlString;
+    final model = context.read<AppModel>();
+    final baseUrl = model.baseUrlString;
     _eventSubscription = ApiClient(baseUrlString: baseUrl).events().listen((
       event,
     ) {
       if (!_eventTouchesSession(event, widget.sessionId)) {
         return;
       }
+      final appliedRealtime = model.applyRealtimeEvent(event);
+      if (appliedRealtime && _isNearBottom()) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+      if (appliedRealtime && _isStreamingTextEvent(event.type)) {
+        return;
+      }
+      if (_isStreamingTextNotification(event)) {
+        return;
+      }
       _eventRefreshDebounce?.cancel();
-      _eventRefreshDebounce = Timer(const Duration(milliseconds: 140), () {
+      _eventRefreshDebounce = Timer(const Duration(milliseconds: 80), () {
         if (mounted) {
           unawaited(_refreshSessionPage(keepBottomIfPinned: true));
         }
       });
     }, onError: (_) {});
+  }
+
+  bool _isStreamingTextEvent(String eventType) {
+    return eventType == 'turn.agentMessage.delta' ||
+        eventType == 'turn.agentMessage.updated';
+  }
+
+  bool _isStreamingTextNotification(AgentEvent event) {
+    if (event.type != 'codex.notification') {
+      return false;
+    }
+    final method = asString(
+      event.payload['method'],
+    ).replaceAll('_', '').toLowerCase();
+    return method.contains('agentmessage') && method.contains('delta');
   }
 
   bool _eventTouchesSession(AgentEvent event, String sessionId) {
@@ -390,6 +416,19 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   ) {
     final messages = <Widget>[];
     for (final turn in detail.turns) {
+      final planText = _planText(turn);
+      if (planText.isNotEmpty) {
+        if (messages.isNotEmpty) {
+          messages.add(const SizedBox(height: 10));
+        }
+        messages.add(
+          _CompactEventBubble(
+            icon: Icons.psychology_alt_outlined,
+            tone: Palette.softBlue,
+            text: planText,
+          ),
+        );
+      }
       for (final item in turn.items) {
         final bubble = _bubbleForItem(item);
         if (bubble == null) {
@@ -418,6 +457,37 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     return messages;
   }
 
+  String _planText(TurnDetail turn) {
+    if (turn.plan.isEmpty && turn.planExplanation.trim().isEmpty) {
+      return '';
+    }
+    final parts = <String>['思考'];
+    final explanation = turn.planExplanation.trim();
+    if (explanation.isNotEmpty) {
+      parts.add(
+        _compactPreview(explanation, maxLength: 70, head: 50, tail: 16),
+      );
+    }
+    final currentSteps = turn.plan
+        .where(
+          (step) => step.status == 'in_progress' || step.status == 'inProgress',
+        )
+        .map((step) => step.step.trim())
+        .where((step) => step.isNotEmpty)
+        .toList();
+    final fallbackSteps = turn.plan
+        .map((step) => step.step.trim())
+        .where((step) => step.isNotEmpty)
+        .toList();
+    final visibleSteps = currentSteps.isNotEmpty ? currentSteps : fallbackSteps;
+    if (visibleSteps.isNotEmpty) {
+      parts.add(
+        _compactPreview(visibleSteps.first, maxLength: 88, head: 64, tail: 18),
+      );
+    }
+    return parts.join(' · ');
+  }
+
   Widget? _bubbleForItem(TurnItem item) {
     final body = item.body.trim();
     switch (item.type) {
@@ -431,6 +501,16 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           return null;
         }
         return _ChatBubble(role: _BubbleRole.agent, text: body);
+      case 'reasoning':
+      case 'plan':
+        if (body.isEmpty) {
+          return null;
+        }
+        return _CompactEventBubble(
+          icon: Icons.psychology_alt_outlined,
+          tone: Palette.softBlue,
+          text: _eventText('思考', body, item.status),
+        );
       case 'fileChange':
         return _CompactEventBubble(
           icon: Icons.description_outlined,
@@ -999,33 +1079,6 @@ class _ChatComposer extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  OptionChipButton(
-                    label: '审查',
-                    value: _policyLabel(model.defaultExecutionPolicy),
-                    icon: Icons.verified_user_rounded,
-                    onPressed: () => _showPolicyPicker(context, model),
-                  ),
-                  OptionChipButton(
-                    label: '模型',
-                    value: model.defaultModel,
-                    icon: Icons.auto_awesome_rounded,
-                    onPressed: () => _showModelPicker(context, model),
-                  ),
-                  OptionChipButton(
-                    label: '推理',
-                    value: _reasoningLabel(model.defaultReasoning),
-                    onPressed: () => _showReasoningPicker(context, model),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
             Row(
               children: <Widget>[
                 _RoundIconButton(
@@ -1040,7 +1093,35 @@ class _ChatComposer extends StatelessWidget {
                           await onPickImage();
                         },
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: <Widget>[
+                        OptionChipButton(
+                          label: '',
+                          value: _policyLabel(model.defaultExecutionPolicy),
+                          onPressed: () => _showPolicyPicker(context, model),
+                        ),
+                        const SizedBox(width: 6),
+                        OptionChipButton(
+                          label: '',
+                          value: model.defaultModel,
+                          onPressed: () => _showModelPicker(context, model),
+                        ),
+                        const SizedBox(width: 6),
+                        OptionChipButton(
+                          label: '',
+                          value: _reasoningLabel(model.defaultReasoning),
+                          onPressed: () => _showReasoningPicker(context, model),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: promptController,
                   builder: (context, value, _) {

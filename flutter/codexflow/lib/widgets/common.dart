@@ -454,13 +454,14 @@ class OptionChipButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = label.trim().isEmpty ? value : '$label $value';
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
           decoration: BoxDecoration(
             color: Palette.ink.appOpacity(0.055),
             borderRadius: BorderRadius.circular(999),
@@ -473,7 +474,9 @@ class OptionChipButton extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               Text(
-                '$label $value',
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: roundedTextStyle(
                   size: 11,
                   weight: FontWeight.w700,

@@ -171,6 +171,387 @@ class AppModel extends ChangeNotifier {
     }
   }
 
+  bool applyRealtimeEvent(AgentEvent event) {
+    switch (event.type) {
+      case 'turn.agentMessage.delta':
+        return _appendAgentMessageDelta(
+          threadId: asString(event.payload['threadId']),
+          turnId: asString(event.payload['turnId']),
+          itemId: asString(event.payload['itemId']),
+          delta: asString(event.payload['delta']),
+        );
+      case 'turn.agentMessage.updated':
+        return _upsertAgentMessageText(
+          threadId: asString(event.payload['threadId']),
+          turnId: asString(event.payload['turnId']),
+          itemId: asString(event.payload['itemId']),
+          text: asString(event.payload['text']),
+        );
+      case 'turn.item.started':
+      case 'turn.item.completed':
+      case 'turn.item.updated':
+        return _upsertRealtimeTurnItem(
+          threadId: asString(event.payload['threadId']),
+          turnId: asString(event.payload['turnId']),
+          rawItem: asMap(event.payload['item']),
+        );
+      case 'turn.plan.updated':
+        return _updateTurnPlan(event.payload);
+      case 'turn.started':
+      case 'turn.completed':
+        return _updateTurnStatus(event.type, event.payload);
+      default:
+        return false;
+    }
+  }
+
+  bool _appendAgentMessageDelta({
+    required String threadId,
+    required String turnId,
+    required String itemId,
+    required String delta,
+  }) {
+    if (threadId.isEmpty || turnId.isEmpty || delta.isEmpty) {
+      return false;
+    }
+
+    final changed = _mutateTurn(threadId, turnId, (turn) {
+      final items = <TurnItem>[...turn.items];
+      var targetIndex = -1;
+      if (itemId.isNotEmpty) {
+        targetIndex = items.indexWhere((item) => item.id == itemId);
+      }
+      if (targetIndex < 0) {
+        for (var idx = items.length - 1; idx >= 0; idx -= 1) {
+          if (items[idx].type == 'agentMessage') {
+            targetIndex = idx;
+            break;
+          }
+        }
+      }
+      if (targetIndex < 0) {
+        items.add(
+          TurnItem(
+            id: itemId.isEmpty ? '$turnId-agent-live' : itemId,
+            type: 'agentMessage',
+            title: 'Agent',
+            body: delta,
+            status: 'inProgress',
+            auxiliary: '',
+            metadata: const <String, String>{},
+          ),
+        );
+      } else {
+        final current = items[targetIndex];
+        items[targetIndex] = current.copyWith(
+          id: current.id.isEmpty ? itemId : current.id,
+          type: 'agentMessage',
+          title: current.title.isEmpty ? 'Agent' : current.title,
+          body: current.body + delta,
+          status: current.status.isEmpty ? 'inProgress' : current.status,
+        );
+      }
+      return turn.copyWith(status: 'inProgress', items: items);
+    });
+
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  bool _upsertAgentMessageText({
+    required String threadId,
+    required String turnId,
+    required String itemId,
+    required String text,
+  }) {
+    if (threadId.isEmpty || turnId.isEmpty || text.trim().isEmpty) {
+      return false;
+    }
+
+    final changed = _upsertRealtimeTurnItem(
+      threadId: threadId,
+      turnId: turnId,
+      rawItem: <String, dynamic>{
+        'id': itemId.isEmpty ? '$turnId-agent-live' : itemId,
+        'type': 'agentMessage',
+        'text': text,
+        'status': 'inProgress',
+      },
+      notify: false,
+    );
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  bool _upsertRealtimeTurnItem({
+    required String threadId,
+    required String turnId,
+    required Map<String, dynamic> rawItem,
+    bool notify = true,
+  }) {
+    if (threadId.isEmpty || turnId.isEmpty || rawItem.isEmpty) {
+      return false;
+    }
+
+    final incoming = _turnItemFromRuntimeItem(rawItem);
+    if (incoming == null) {
+      return false;
+    }
+
+    final changed = _mutateTurn(threadId, turnId, (turn) {
+      final items = <TurnItem>[...turn.items];
+      final itemId = incoming.id.trim();
+      var targetIndex = -1;
+      if (itemId.isNotEmpty) {
+        targetIndex = items.indexWhere((item) => item.id == itemId);
+      }
+      if (targetIndex < 0) {
+        items.add(incoming);
+      } else {
+        final current = items[targetIndex];
+        if (incoming.type == 'agentMessage' &&
+            current.type == 'agentMessage' &&
+            current.body.length > incoming.body.length) {
+          items[targetIndex] = current.copyWith(
+            status: incoming.status.isEmpty ? current.status : incoming.status,
+          );
+        } else {
+          items[targetIndex] = incoming;
+        }
+      }
+      return turn.copyWith(status: 'inProgress', items: items);
+    });
+
+    if (changed && notify) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  bool _updateTurnPlan(Map<String, dynamic> payload) {
+    final threadId = asString(payload['threadId']);
+    final turnId = asString(payload['turnId']);
+    if (threadId.isEmpty || turnId.isEmpty) {
+      return false;
+    }
+
+    final plan = asList(payload['plan'])
+        .map((item) => PlanStep.fromJson(asMap(item)))
+        .where((step) => step.step.trim().isNotEmpty)
+        .toList();
+    final explanation = asString(payload['explanation']);
+    final changed = _mutateTurn(threadId, turnId, (turn) {
+      return turn.copyWith(
+        status: 'inProgress',
+        planExplanation: explanation,
+        plan: plan,
+      );
+    });
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  bool _updateTurnStatus(String eventType, Map<String, dynamic> payload) {
+    final threadId = asString(payload['threadId']);
+    final turnId = asString(payload['turnId']);
+    if (threadId.isEmpty || turnId.isEmpty) {
+      return false;
+    }
+
+    var status = asString(payload['status']);
+    if (status.isEmpty) {
+      final turn = asMap(payload['turn']);
+      status = asString(turn['status']);
+    }
+    if (status.isEmpty && payload.containsKey('turnId')) {
+      status = _eventStatusFromType(eventType);
+    }
+    if (status.isEmpty) {
+      status = 'inProgress';
+    }
+
+    final changed = _mutateTurn(threadId, turnId, (turn) {
+      return turn.copyWith(status: status);
+    });
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  String _eventStatusFromType(String value) {
+    return value == 'turn.completed' ? 'completed' : 'inProgress';
+  }
+
+  bool _mutateTurn(
+    String threadId,
+    String turnId,
+    TurnDetail Function(TurnDetail turn) mutate,
+  ) {
+    final detail = sessionDetails[threadId];
+    if (detail == null) {
+      return false;
+    }
+
+    final turns = <TurnDetail>[...detail.turns];
+    var index = turns.indexWhere((turn) => turn.id == turnId);
+    if (index < 0) {
+      turns.add(
+        TurnDetail(
+          id: turnId,
+          status: 'inProgress',
+          startedAt: 0,
+          completedAt: 0,
+          durationMs: 0,
+          error: '',
+          diff: '',
+          planExplanation: '',
+          plan: const <PlanStep>[],
+          items: const <TurnItem>[],
+        ),
+      );
+      index = turns.length - 1;
+    }
+
+    turns[index] = mutate(turns[index]);
+    sessionDetails[threadId] = detail.copyWith(turns: turns);
+    return true;
+  }
+
+  TurnItem? _turnItemFromRuntimeItem(Map<String, dynamic> item) {
+    final type = asString(item['type']);
+    final id = asString(item['id']);
+    final status = asString(item['status']);
+    final metadata = <String, String>{};
+    switch (type) {
+      case 'userMessage':
+        final body = _firstUserText(item);
+        if (body.isEmpty) {
+          return null;
+        }
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'User Prompt',
+          body: body,
+          status: status,
+          auxiliary: '',
+          metadata: metadata,
+        );
+      case 'agentMessage':
+        final body = asString(item['text']);
+        if (body.trim().isEmpty) {
+          return null;
+        }
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'Agent',
+          body: body,
+          status: status,
+          auxiliary: '',
+          metadata: metadata,
+        );
+      case 'reasoning':
+        final body = asList(
+          item['summary'],
+        ).map((part) => asString(part)).join('\n');
+        if (body.trim().isEmpty) {
+          return null;
+        }
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'Reasoning',
+          body: body,
+          status: status,
+          auxiliary: '',
+          metadata: metadata,
+        );
+      case 'commandExecution':
+        metadata['cwd'] = asString(item['cwd']);
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'Command',
+          body: asString(item['command']),
+          status: status,
+          auxiliary: asString(item['aggregatedOutput']),
+          metadata: metadata,
+        );
+      case 'fileChange':
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'File Change',
+          body: '文件变更',
+          status: status,
+          auxiliary: '',
+          metadata: metadata,
+        );
+      case 'dynamicToolCall':
+        metadata['tool'] = asString(item['tool']);
+        metadata['progress'] = asString(item['progress']);
+        return TurnItem(
+          id: id,
+          type: type,
+          title: asString(item['title'], 'Tool Call'),
+          body: asString(
+            item['summary'],
+            '${item['namespace']}:${item['tool']}',
+          ),
+          status: status,
+          auxiliary: asString(item['result']),
+          metadata: metadata,
+        );
+      case 'collabAgentToolCall':
+        metadata['title'] = asString(item['title']);
+        return TurnItem(
+          id: id,
+          type: type,
+          title: 'Delegation',
+          body: asString(item['prompt']),
+          status: status,
+          auxiliary: asString(item['result']),
+          metadata: metadata,
+        );
+      default:
+        final body = asString(item['summary'], asString(item['result']));
+        if (type.isEmpty || body.trim().isEmpty) {
+          return null;
+        }
+        return TurnItem(
+          id: id,
+          type: type,
+          title: type,
+          body: body,
+          status: status,
+          auxiliary: '',
+          metadata: metadata,
+        );
+    }
+  }
+
+  String _firstUserText(Map<String, dynamic> item) {
+    final parts = <String>[];
+    for (final entry in asList(item['content'])) {
+      final content = asMap(entry);
+      if (asString(content['type']) == 'text') {
+        final text = asString(content['text']).trim();
+        if (text.isNotEmpty) {
+          parts.add(text);
+        }
+      }
+    }
+    return parts.join('\n');
+  }
+
   Future<bool> startSession({
     required String cwd,
     required String prompt,
