@@ -12,6 +12,7 @@ func TestLocalStateDBPersistsAgentBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenLocalStateDB() error = %v", err)
 	}
+	defer db.Close()
 
 	state := PersistedSessionState{
 		Ended:          false,
@@ -27,6 +28,7 @@ func TestLocalStateDBPersistsAgentBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen OpenLocalStateDB() error = %v", err)
 	}
+	defer reopened.Close()
 
 	states, err := reopened.LoadSessionStates()
 	if err != nil {

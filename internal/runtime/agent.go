@@ -789,14 +789,45 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordPlan(payload)
 		}
+	case "item/started":
+		var payload codex.ItemStartedNotification
+		if json.Unmarshal(notification.Params, &payload) == nil {
+			a.store.RecordTurnItem(payload.ThreadID, payload.TurnID, payload.Item)
+			a.broker.Publish("turn.item.started", payload)
+		}
+	case "item/completed":
+		var payload codex.ItemCompletedNotification
+		if json.Unmarshal(notification.Params, &payload) == nil {
+			a.store.RecordTurnItem(payload.ThreadID, payload.TurnID, payload.Item)
+			a.broker.Publish("turn.item.completed", payload)
+		}
+	case "item/agentMessage/delta", "item/agent_message/delta", "agentMessage/delta", "turn/agentMessage/delta", "turn/agent_message/delta":
+		var payload codex.AgentMessageDeltaNotification
+		if json.Unmarshal(notification.Params, &payload) == nil {
+			a.store.AppendAgentMessageDelta(payload.ThreadID, payload.TurnID, payload.ItemID, payload.Delta)
+			a.broker.Publish("turn.agentMessage.delta", payload)
+		}
 	case "thread/closed":
 		_ = a.Refresh(ctx)
+	default:
+		if looksLikeAgentMessageDelta(notification.Method) {
+			var payload codex.AgentMessageDeltaNotification
+			if json.Unmarshal(notification.Params, &payload) == nil {
+				a.store.AppendAgentMessageDelta(payload.ThreadID, payload.TurnID, payload.ItemID, payload.Delta)
+				a.broker.Publish("turn.agentMessage.delta", payload)
+			}
+		}
 	}
 
 	a.broker.Publish("codex.notification", map[string]any{
 		"method": notification.Method,
 		"params": json.RawMessage(notification.Params),
 	})
+}
+
+func looksLikeAgentMessageDelta(method string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(method, "_", ""))
+	return strings.Contains(normalized, "agentmessage") && strings.Contains(normalized, "delta")
 }
 
 func (a *Agent) handleServerRequest(ctx context.Context, request codex.ServerRequest) {

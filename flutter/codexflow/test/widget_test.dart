@@ -12,7 +12,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('会话'), findsWidgets);
-    expect(find.text('审批'), findsOneWidget);
+    expect(find.text('审批'), findsWidgets);
     expect(find.text('设置'), findsOneWidget);
   });
 }

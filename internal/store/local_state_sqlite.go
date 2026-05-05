@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS session_local_state (
 	return db, nil
 }
 
+func (db *LocalStateDB) Close() error {
+	if db == nil || db.db == nil {
+		return nil
+	}
+	return db.db.Close()
+}
+
 func (db *LocalStateDB) LoadSessionStates() (map[string]PersistedSessionState, error) {
 	if db == nil {
 		return map[string]PersistedSessionState{}, nil

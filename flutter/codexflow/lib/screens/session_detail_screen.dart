@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/app_models.dart';
+import '../services/api_client.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
@@ -26,15 +27,21 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final List<_ComposerAttachment> _attachments = <_ComposerAttachment>[];
   Timer? _timer;
+  Timer? _eventRefreshDebounce;
+  StreamSubscription<AgentEvent>? _eventSubscription;
   int _tick = 0;
   bool _isUploadingImage = false;
+  bool _isAtBottom = true;
+  bool _showJumpToLatest = false;
 
   @override
   void initState() {
     super.initState();
     _promptController = TextEditingController();
+    _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_refreshSessionPage());
+      unawaited(_refreshSessionPage(forceBottom: true));
+      _startEventStream();
       _timer = Timer.periodic(
         const Duration(seconds: 2),
         (_) => _pollIfNeeded(),
@@ -45,6 +52,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _eventRefreshDebounce?.cancel();
+    final eventSubscription = _eventSubscription;
+    if (eventSubscription != null) {
+      unawaited(eventSubscription.cancel());
+    }
     _promptController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -95,11 +107,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
   }
 
-  Future<void> _refreshSessionPage() async {
+  Future<void> _refreshSessionPage({
+    bool keepBottomIfPinned = false,
+    bool forceBottom = false,
+  }) async {
+    final wasAtBottom = _isNearBottom();
     final model = context.read<AppModel>();
     await model.refreshDashboard();
     await model.loadSession(widget.sessionId);
-    if (mounted) {
+    if (mounted && (forceBottom || (keepBottomIfPinned && wasAtBottom))) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
   }
@@ -113,6 +129,67 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  void _handleScroll() {
+    final atBottom = _isNearBottom();
+    if (atBottom == _isAtBottom && _showJumpToLatest == !atBottom) {
+      return;
+    }
+    setState(() {
+      _isAtBottom = atBottom;
+      _showJumpToLatest = !atBottom;
+    });
+  }
+
+  bool _isNearBottom() {
+    if (!_scrollController.hasClients) {
+      return true;
+    }
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= 96;
+  }
+
+  void _startEventStream() {
+    final baseUrl = context.read<AppModel>().baseUrlString;
+    _eventSubscription = ApiClient(baseUrlString: baseUrl).events().listen((
+      event,
+    ) {
+      if (!_eventTouchesSession(event, widget.sessionId)) {
+        return;
+      }
+      _eventRefreshDebounce?.cancel();
+      _eventRefreshDebounce = Timer(const Duration(milliseconds: 140), () {
+        if (mounted) {
+          unawaited(_refreshSessionPage(keepBottomIfPinned: true));
+        }
+      });
+    }, onError: (_) {});
+  }
+
+  bool _eventTouchesSession(AgentEvent event, String sessionId) {
+    final eventType = event.type;
+    if (eventType == 'sessions.refreshed') {
+      return true;
+    }
+    return _payloadTouchesSession(event.payload, sessionId);
+  }
+
+  bool _payloadTouchesSession(Map<String, dynamic> payload, String sessionId) {
+    for (final key in const <String>['threadId', 'sessionId']) {
+      if (asString(payload[key]) == sessionId) {
+        return true;
+      }
+    }
+    if (asString(payload['id']) == sessionId &&
+        payload.containsKey('agentId')) {
+      return true;
+    }
+    final params = asMap(payload['params']);
+    if (params.isNotEmpty && _payloadTouchesSession(params, sessionId)) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> _pickAndUploadImage() async {
@@ -222,44 +299,54 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 isError: model.operationNoticeIsError,
               ),
             Expanded(
-              child: RefreshIndicator(
-                color: Palette.accent,
-                onRefresh: _refreshSessionPage,
-                child: ListView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
-                  children: <Widget>[
-                    if (summary != null)
-                      _ThreadHeader(summary: summary)
-                    else
-                      const _SystemBubble(text: '正在加载会话信息'),
-                    const SizedBox(height: 14),
-                    if (detail == null)
-                      const _LoadingBubble()
-                    else
-                      ..._buildMessageFlow(detail, summary),
-                    if (approvals.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _ApprovalBubble(approvals: approvals),
-                    ],
-                    if (activeTurn != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      const _SystemBubble(text: 'Agent 正在回复'),
-                    ],
-                    if (summary != null &&
-                        (summary.isEnded || !summary.loaded)) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _TakeoverBubble(
-                        summary: summary,
-                        supportsResume: supportsResume,
-                        onPressed: () async {
-                          await model.resumeSession(summary);
-                          await _refreshSessionPage();
-                        },
-                      ),
-                    ],
-                  ],
-                ),
+              child: Stack(
+                children: <Widget>[
+                  RefreshIndicator(
+                    color: Palette.accent,
+                    onRefresh: _refreshSessionPage,
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
+                      children: <Widget>[
+                        if (summary != null)
+                          _ThreadHeader(summary: summary)
+                        else
+                          const _SystemBubble(text: '正在加载会话信息'),
+                        const SizedBox(height: 14),
+                        if (detail == null)
+                          const _LoadingBubble()
+                        else
+                          ..._buildMessageFlow(detail, summary),
+                        if (approvals.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          _ApprovalBubble(approvals: approvals),
+                        ],
+                        if (activeTurn != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          const _SystemBubble(text: 'Agent 正在回复'),
+                        ],
+                        if (summary != null &&
+                            (summary.isEnded || !summary.loaded)) ...<Widget>[
+                          const SizedBox(height: 8),
+                          _TakeoverBubble(
+                            summary: summary,
+                            supportsResume: supportsResume,
+                            onPressed: () async {
+                              await model.resumeSession(summary);
+                              await _refreshSessionPage(forceBottom: true);
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (_showJumpToLatest)
+                    Positioned(
+                      right: 18,
+                      bottom: 14,
+                      child: _JumpToLatestButton(onPressed: _scrollToBottom),
+                    ),
+                ],
               ),
             ),
             if (summary != null && !summary.isEnded && summary.loaded)
@@ -287,7 +374,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     setState(() {
                       _attachments.clear();
                     });
-                    await _refreshSessionPage();
+                    await _refreshSessionPage(forceBottom: true);
                   }
                 },
               ),
@@ -434,6 +521,44 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       return value;
     }
     return '${String.fromCharCodes(values.take(safeHead))}...${String.fromCharCodes(values.skip(values.length - safeTail))}';
+  }
+}
+
+class _JumpToLatestButton extends StatelessWidget {
+  const _JumpToLatestButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 46,
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Palette.ink,
+            shape: BoxShape.circle,
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color.fromRGBO(31, 36, 41, 0.18),
+                blurRadius: 24,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -815,7 +940,7 @@ class _ChatComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeTurn = summary.lastTurnStatus == 'inProgress';
-    final accentTone = activeTurn ? Palette.warning : Palette.accent;
+    final model = context.watch<AppModel>();
 
     return SafeArea(
       top: false,
@@ -873,6 +998,34 @@ class _ChatComposer extends StatelessWidget {
                 contentPadding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
               ),
             ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  OptionChipButton(
+                    label: '审查',
+                    value: _policyLabel(model.defaultExecutionPolicy),
+                    icon: Icons.verified_user_rounded,
+                    onPressed: () => _showPolicyPicker(context, model),
+                  ),
+                  OptionChipButton(
+                    label: '模型',
+                    value: model.defaultModel,
+                    icon: Icons.auto_awesome_rounded,
+                    onPressed: () => _showModelPicker(context, model),
+                  ),
+                  OptionChipButton(
+                    label: '推理',
+                    value: _reasoningLabel(model.defaultReasoning),
+                    onPressed: () => _showReasoningPicker(context, model),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: <Widget>[
                 _RoundIconButton(
@@ -887,24 +1040,7 @@ class _ChatComposer extends StatelessWidget {
                           await onPickImage();
                         },
                 ),
-                const SizedBox(width: 8),
-                _ComposerChip(
-                  text: activeTurn ? 'steer' : 'next',
-                  tone: accentTone,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    summary.branch.isEmpty ? summary.source : summary.branch,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: roundedTextStyle(
-                      size: 12,
-                      weight: FontWeight.w600,
-                      color: Palette.mutedInk,
-                    ),
-                  ),
-                ),
+                const Spacer(),
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: promptController,
                   builder: (context, value, _) {
@@ -925,6 +1061,105 @@ class _ChatComposer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showPolicyPicker(BuildContext context, AppModel model) async {
+    await _showValuePicker(
+      context: context,
+      title: '默认执行策略',
+      value: model.defaultExecutionPolicy,
+      values: const <String, String>{
+        'review': '自动审查',
+        'ask': '每次确认',
+        'full': '完全使用权限',
+      },
+      onSelected: model.updateDefaultExecutionPolicy,
+    );
+  }
+
+  Future<void> _showModelPicker(BuildContext context, AppModel model) async {
+    await _showValuePicker(
+      context: context,
+      title: '默认模型',
+      value: model.defaultModel,
+      values: const <String, String>{
+        'GPT-5.4': 'GPT-5.4',
+        'GPT-5.5': 'GPT-5.5',
+      },
+      onSelected: model.updateDefaultModel,
+    );
+  }
+
+  Future<void> _showReasoningPicker(
+    BuildContext context,
+    AppModel model,
+  ) async {
+    await _showValuePicker(
+      context: context,
+      title: '推理深度',
+      value: model.defaultReasoning,
+      values: const <String, String>{
+        'low': '低',
+        'medium': '中',
+        'high': '高',
+        'xhigh': '超高',
+      },
+      onSelected: model.updateDefaultReasoning,
+    );
+  }
+
+  Future<void> _showValuePicker({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required Map<String, String> values,
+    required Future<void> Function(String value) onSelected,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _OptionSheet(
+        title: title,
+        children: values.entries
+            .map(
+              (entry) => _OptionSheetTile(
+                title: entry.value,
+                selected: entry.key == value,
+                onTap: () async {
+                  await onSelected(entry.key);
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  String _policyLabel(String value) {
+    switch (value) {
+      case 'ask':
+        return '每次确认';
+      case 'full':
+        return '完全权限';
+      default:
+        return '自动审查';
+    }
+  }
+
+  String _reasoningLabel(String value) {
+    switch (value) {
+      case 'low':
+        return '低';
+      case 'high':
+        return '高';
+      case 'xhigh':
+        return '超高';
+      default:
+        return '中';
+    }
   }
 }
 
@@ -993,23 +1228,101 @@ class _SendButton extends StatelessWidget {
   }
 }
 
-class _ComposerChip extends StatelessWidget {
-  const _ComposerChip({required this.text, required this.tone});
+class _OptionSheet extends StatelessWidget {
+  const _OptionSheet({required this.title, required this.children});
 
-  final String text;
-  final Color tone;
+  final String title;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: tone.appOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+      decoration: const BoxDecoration(
+        color: Palette.canvas,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Text(
-        text,
-        style: roundedTextStyle(size: 11, weight: FontWeight.w700, color: tone),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Center(
+              child: Container(
+                width: 42,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Palette.line,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: roundedTextStyle(size: 17, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionSheetTile extends StatelessWidget {
+  const _OptionSheetTile({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: selected
+                  ? Palette.softBlue.appOpacity(0.10)
+                  : Palette.surfaceStrong,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? Palette.softBlue.appOpacity(0.28)
+                    : Palette.line,
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    title,
+                    style: roundedTextStyle(size: 14, weight: FontWeight.w700),
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Palette.softBlue,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

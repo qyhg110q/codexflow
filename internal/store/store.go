@@ -293,6 +293,114 @@ func (s *Store) RecordTurn(threadID string, turn codex.Turn) {
 	record.Runtime.CurrentTurnID = turn.ID
 }
 
+func (s *Store) RecordTurnItem(threadID, turnID string, item map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	threadID = strings.TrimSpace(threadID)
+	turnID = strings.TrimSpace(turnID)
+	if threadID == "" || turnID == "" || len(item) == 0 {
+		return
+	}
+
+	record := s.ensureSessionLocked(threadID)
+	turn := ensureTurnLocked(record, turnID)
+	itemID := stringField(item, "id")
+	if itemID == "" {
+		turn.Items = append(turn.Items, cloneMap(item))
+		record.Runtime.CurrentTurnID = turnID
+		return
+	}
+
+	for idx := range turn.Items {
+		if stringField(turn.Items[idx], "id") == itemID {
+			turn.Items[idx] = mergeItem(turn.Items[idx], item)
+			record.Runtime.CurrentTurnID = turnID
+			return
+		}
+	}
+
+	turn.Items = append(turn.Items, cloneMap(item))
+	record.Runtime.CurrentTurnID = turnID
+}
+
+func (s *Store) AppendAgentMessageDelta(threadID, turnID, itemID, delta string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	threadID = strings.TrimSpace(threadID)
+	turnID = strings.TrimSpace(turnID)
+	itemID = strings.TrimSpace(itemID)
+	if threadID == "" || turnID == "" || delta == "" {
+		return
+	}
+
+	record := s.ensureSessionLocked(threadID)
+	turn := ensureTurnLocked(record, turnID)
+	targetIndex := -1
+	if itemID != "" {
+		for idx := range turn.Items {
+			if stringField(turn.Items[idx], "id") == itemID {
+				targetIndex = idx
+				break
+			}
+		}
+	}
+	if targetIndex < 0 {
+		for idx := len(turn.Items) - 1; idx >= 0; idx-- {
+			if stringField(turn.Items[idx], "type") == "agentMessage" {
+				targetIndex = idx
+				break
+			}
+		}
+	}
+	if targetIndex < 0 {
+		item := map[string]any{
+			"type": "agentMessage",
+			"text": "",
+		}
+		if itemID != "" {
+			item["id"] = itemID
+		}
+		turn.Items = append(turn.Items, item)
+		targetIndex = len(turn.Items) - 1
+	}
+
+	item := turn.Items[targetIndex]
+	item["type"] = "agentMessage"
+	if itemID != "" && stringField(item, "id") == "" {
+		item["id"] = itemID
+	}
+	item["text"] = stringField(item, "text") + delta
+	record.Runtime.CurrentTurnID = turnID
+}
+
+func ensureTurnLocked(record *SessionRecord, turnID string) *codex.Turn {
+	for idx := range record.Thread.Turns {
+		if record.Thread.Turns[idx].ID == turnID {
+			if record.Thread.Turns[idx].Status == "" {
+				record.Thread.Turns[idx].Status = "inProgress"
+			}
+			return &record.Thread.Turns[idx]
+		}
+	}
+
+	record.Thread.Turns = append(record.Thread.Turns, codex.Turn{
+		ID:     turnID,
+		Status: "inProgress",
+		Items:  []map[string]any{},
+	})
+	return &record.Thread.Turns[len(record.Thread.Turns)-1]
+}
+
+func mergeItem(existing, incoming map[string]any) map[string]any {
+	merged := cloneMap(existing)
+	for key, value := range incoming {
+		merged[key] = value
+	}
+	return merged
+}
+
 func (s *Store) ensureSessionLocked(threadID string) *SessionRecord {
 	record, ok := s.sessions[threadID]
 	if ok {
@@ -536,6 +644,9 @@ func mergeThread(existing, incoming codex.Thread) codex.Thread {
 	if len(merged.Turns) == 0 && len(existing.Turns) > 0 {
 		merged.Turns = cloneTurns(existing.Turns)
 	}
+	if len(merged.Turns) > 0 && len(existing.Turns) > 0 {
+		merged.Turns = mergeTurns(existing.Turns, merged.Turns)
+	}
 	if strings.TrimSpace(merged.Preview) == "" && strings.TrimSpace(existing.Preview) != "" {
 		merged.Preview = existing.Preview
 	}
@@ -581,6 +692,71 @@ func cloneTurns(turns []codex.Turn) []codex.Turn {
 	var cloned []codex.Turn
 	_ = json.Unmarshal(data, &cloned)
 	return cloned
+}
+
+func mergeTurns(existing, incoming []codex.Turn) []codex.Turn {
+	existingByID := make(map[string]codex.Turn, len(existing))
+	for _, turn := range existing {
+		existingByID[turn.ID] = turn
+	}
+
+	result := cloneTurns(incoming)
+	for idx := range result {
+		old, ok := existingByID[result[idx].ID]
+		if !ok {
+			continue
+		}
+		if len(result[idx].Items) == 0 && len(old.Items) > 0 {
+			result[idx].Items = cloneItems(old.Items)
+			continue
+		}
+		if result[idx].Status == "inProgress" || old.Status == "inProgress" {
+			result[idx].Items = mergeTurnItems(old.Items, result[idx].Items)
+		}
+	}
+	return result
+}
+
+func mergeTurnItems(existing, incoming []map[string]any) []map[string]any {
+	result := cloneItems(incoming)
+	seen := make(map[string]int, len(result))
+	for idx, item := range result {
+		itemID := stringField(item, "id")
+		if itemID != "" {
+			seen[itemID] = idx
+		}
+	}
+
+	for _, item := range existing {
+		itemID := stringField(item, "id")
+		if itemID == "" {
+			result = append(result, cloneMap(item))
+			continue
+		}
+		idx, ok := seen[itemID]
+		if !ok {
+			result = append(result, cloneMap(item))
+			seen[itemID] = len(result) - 1
+			continue
+		}
+		if stringField(item, "type") == "agentMessage" && stringField(result[idx], "type") == "agentMessage" {
+			if len(stringField(item, "text")) > len(stringField(result[idx], "text")) {
+				result[idx]["text"] = stringField(item, "text")
+			}
+		}
+	}
+	return result
+}
+
+func cloneItems(items []map[string]any) []map[string]any {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		result = append(result, cloneMap(item))
+	}
+	return result
 }
 
 func cloneStringPtr(value *string) *string {

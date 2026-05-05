@@ -76,6 +76,63 @@ func TestReplaceSessionsPreservesExistingTurnsWhenIncomingThreadHasNone(t *testi
 	}
 }
 
+func TestAppendAgentMessageDeltaCreatesAndUpdatesPartialItem(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.AppendAgentMessageDelta("thread-1", "turn-1", "item-1", "hello")
+	sessionStore.AppendAgentMessageDelta("thread-1", "turn-1", "item-1", " world")
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatal("SnapshotSession() missing thread-1")
+	}
+	if len(record.Thread.Turns) != 1 {
+		t.Fatalf("len(record.Thread.Turns) = %d, want 1", len(record.Thread.Turns))
+	}
+	turn := record.Thread.Turns[0]
+	if turn.Status != "inProgress" {
+		t.Fatalf("turn.Status = %q, want inProgress", turn.Status)
+	}
+	if len(turn.Items) != 1 {
+		t.Fatalf("len(turn.Items) = %d, want 1", len(turn.Items))
+	}
+	if got := turn.Items[0]["text"]; got != "hello world" {
+		t.Fatalf("turn.Items[0][text] = %q, want hello world", got)
+	}
+}
+
+func TestUpsertThreadPreservesLongerInProgressAgentMessage(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.AppendAgentMessageDelta("thread-1", "turn-1", "item-1", "partial text")
+	sessionStore.UpsertThread(codex.Thread{
+		ID: "thread-1",
+		Turns: []codex.Turn{
+			{
+				ID:     "turn-1",
+				Status: "inProgress",
+				Items: []map[string]any{
+					{"id": "item-1", "type": "agentMessage", "text": "partial"},
+				},
+			},
+		},
+	})
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatal("SnapshotSession() missing thread-1")
+	}
+	if got := record.Thread.Turns[0].Items[0]["text"]; got != "partial text" {
+		t.Fatalf("agent text = %q, want partial text", got)
+	}
+}
+
 func TestHasLocalSessionState(t *testing.T) {
 	sessionStore, err := New(nil)
 	if err != nil {

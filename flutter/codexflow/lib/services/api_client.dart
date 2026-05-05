@@ -16,11 +16,9 @@ class ApiError implements Exception {
 }
 
 class ApiClient {
-  ApiClient({
-    required String baseUrlString,
-    http.Client? client,
-  })  : _baseUri = Uri.parse(baseUrlString),
-        _client = client ?? http.Client();
+  ApiClient({required String baseUrlString, http.Client? client})
+    : _baseUri = Uri.parse(baseUrlString),
+      _client = client ?? http.Client();
 
   final Uri _baseUri;
   final http.Client _client;
@@ -33,6 +31,60 @@ class ApiClient {
   Future<SessionDetail> sessionDetail(String id) async {
     final json = await _decodeMap('/api/v1/sessions/$id');
     return SessionDetail.fromJson(json);
+  }
+
+  Stream<AgentEvent> events() async* {
+    final client = http.Client();
+    final request = http.Request('GET', _baseUri.resolve('/api/v1/events'))
+      ..headers['Accept'] = 'text/event-stream'
+      ..headers['Cache-Control'] = 'no-cache';
+
+    http.StreamedResponse streamed;
+    try {
+      streamed = await client.send(request);
+    } on FormatException {
+      client.close();
+      throw ApiError('The agent base URL is invalid.');
+    } catch (error) {
+      client.close();
+      throw ApiError(error.toString());
+    }
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      client.close();
+      throw ApiError('Event stream failed with status ${streamed.statusCode}');
+    }
+
+    var eventType = '';
+    final dataLines = <String>[];
+    try {
+      await for (final line
+          in streamed.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+        if (line.isEmpty) {
+          final rawData = dataLines.join('\n');
+          if (rawData.isNotEmpty) {
+            yield AgentEvent.fromSse(eventType: eventType, data: rawData);
+          }
+          eventType = '';
+          dataLines.clear();
+          continue;
+        }
+        if (line.startsWith(':')) {
+          continue;
+        }
+        if (line.startsWith('event:')) {
+          eventType = line.substring('event:'.length).trim();
+          continue;
+        }
+        if (line.startsWith('data:')) {
+          dataLines.add(line.substring('data:'.length).trimLeft());
+        }
+      }
+    } finally {
+      client.close();
+    }
   }
 
   Future<void> refreshSessions() async {
@@ -149,16 +201,14 @@ class ApiClient {
     final uri = _baseUri.resolve('/api/v1/uploads/image');
     final request = http.MultipartRequest('POST', uri)
       ..files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: fileName,
-        ),
+        http.MultipartFile.fromBytes('file', bytes, filename: fileName),
       );
 
     late http.StreamedResponse streamed;
     try {
-      streamed = await _client.send(request).timeout(const Duration(seconds: 45));
+      streamed = await _client
+          .send(request)
+          .timeout(const Duration(seconds: 45));
     } on TimeoutException {
       throw ApiError('The image upload request timed out.');
     } catch (error) {
@@ -186,8 +236,9 @@ class ApiClient {
       return UploadedImageRef.fromJson(payload);
     }
     if (payload is Map) {
-      final map = payload
-          .map((key, dynamic value) => MapEntry(key.toString(), value));
+      final map = payload.map(
+        (key, dynamic value) => MapEntry(key.toString(), value),
+      );
       return UploadedImageRef.fromJson(map);
     }
     throw ApiError('The agent returned an invalid upload response.');
@@ -209,8 +260,9 @@ class ApiClient {
       return result;
     }
     if (result is Map) {
-      return result
-          .map((key, dynamic value) => MapEntry(key.toString(), value));
+      return result.map(
+        (key, dynamic value) => MapEntry(key.toString(), value),
+      );
     }
     throw ApiError('The agent returned an invalid response.');
   }
@@ -267,21 +319,46 @@ class ApiClient {
     final inputs = <Map<String, dynamic>>[];
     final trimmed = prompt.trim();
     if (trimmed.isNotEmpty) {
-      inputs.add(<String, dynamic>{
-        'type': 'text',
-        'text': trimmed,
-      });
+      inputs.add(<String, dynamic>{'type': 'text', 'text': trimmed});
     }
     for (final id in imageUploadIds) {
       final trimmedId = id.trim();
       if (trimmedId.isEmpty) {
         continue;
       }
-      inputs.add(<String, dynamic>{
-        'type': 'image',
-        'uploadId': trimmedId,
-      });
+      inputs.add(<String, dynamic>{'type': 'image', 'uploadId': trimmedId});
     }
     return inputs;
+  }
+}
+
+class AgentEvent {
+  AgentEvent({required this.type, required this.payload});
+
+  final String type;
+  final Map<String, dynamic> payload;
+
+  factory AgentEvent.fromSse({
+    required String eventType,
+    required String data,
+  }) {
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(data);
+    } catch (_) {
+      decoded = const <String, dynamic>{};
+    }
+
+    final object = decoded is Map<String, dynamic>
+        ? decoded
+        : decoded is Map
+        ? decoded.map((key, dynamic value) => MapEntry(key.toString(), value))
+        : <String, dynamic>{};
+    return AgentEvent(
+      type: asString(object['type']).isEmpty
+          ? eventType
+          : asString(object['type']),
+      payload: asMap(object['payload']),
+    );
   }
 }
