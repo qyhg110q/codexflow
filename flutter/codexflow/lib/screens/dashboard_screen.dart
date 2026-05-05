@@ -378,6 +378,52 @@ class _InlineMetric extends StatelessWidget {
   }
 }
 
+class _ComposerSendButton extends StatelessWidget {
+  const _ComposerSendButton({
+    required this.enabled,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final bool loading;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? () async => onPressed() : null,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: enabled ? Palette.ink : Palette.ink.appOpacity(0.12),
+            shape: BoxShape.circle,
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(
+                  Icons.arrow_upward_rounded,
+                  size: 22,
+                  color: enabled ? Colors.white : Palette.mutedInk,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DashboardComposer extends StatefulWidget {
   const _DashboardComposer({required this.model});
 
@@ -398,6 +444,18 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     super.initState();
     _cwdController = TextEditingController(text: _initialCwd());
     _promptController = TextEditingController();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DashboardComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_cwdController.text.trim().isNotEmpty) {
+      return;
+    }
+    final cwd = _initialCwd();
+    if (cwd.isNotEmpty) {
+      _cwdController.text = cwd;
+    }
   }
 
   @override
@@ -501,18 +559,10 @@ class _DashboardComposerState extends State<_DashboardComposer> {
                     ),
                   ),
                   const Spacer(),
-                  SizedBox(
-                    width: 132,
-                    child: ActionButton(
-                      title: _isCreating ? '创建中' : '发送',
-                      background: canCreate
-                          ? Palette.ink
-                          : Palette.ink.appOpacity(0.12),
-                      foreground: canCreate ? Colors.white : Palette.mutedInk,
-                      icon: Icons.arrow_upward_rounded,
-                      enabled: canCreate,
-                      onPressed: () => _createSession(context),
-                    ),
+                  _ComposerSendButton(
+                    enabled: canCreate,
+                    loading: _isCreating,
+                    onPressed: () => _createSession(context),
                   ),
                 ],
               ),

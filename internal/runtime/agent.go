@@ -462,15 +462,22 @@ func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID 
 	a.store.SetSessionManaged(threadResp.Thread.ID, true)
 	a.store.SetSessionLoaded(threadResp.Thread.ID, true)
 
-	if strings.TrimSpace(prompt) != "" {
-		if _, err := a.StartTurnWithPrompt(ctx, threadResp.Thread.ID, prompt); err != nil {
-			return SessionSummary{}, err
-		}
-	}
-
 	record, _ := a.store.SnapshotSession(threadResp.Thread.ID)
 	summary := toSessionSummary(record, 0)
 	a.broker.Publish("session.created", summary)
+	if strings.TrimSpace(prompt) != "" {
+		threadID := threadResp.Thread.ID
+		trimmedPrompt := strings.TrimSpace(prompt)
+		go func() {
+			if _, err := a.StartTurnWithPrompt(a.runCtx, threadID, trimmedPrompt); err != nil {
+				a.logger.Warn("failed to start initial turn", "threadId", threadID, "error", err)
+				a.broker.Publish("turn.start.failed", map[string]string{
+					"threadId": threadID,
+					"error":    err.Error(),
+				})
+			}
+		}()
+	}
 	return summary, nil
 }
 
@@ -816,8 +823,7 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 			a.broker.Publish("turn.item.completed", payload)
 		}
 	case "item/agentMessage/delta", "item/agent_message/delta", "agentMessage/delta", "turn/agentMessage/delta", "turn/agent_message/delta":
-		var payload codex.AgentMessageDeltaNotification
-		if json.Unmarshal(notification.Params, &payload) == nil {
+		if payload, ok := decodeAgentMessageDelta(notification.Params); ok {
 			a.store.AppendAgentMessageDelta(payload.ThreadID, payload.TurnID, payload.ItemID, payload.Delta)
 			a.broker.Publish("turn.agentMessage.delta", payload)
 		}
@@ -825,8 +831,7 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 		_ = a.Refresh(ctx)
 	default:
 		if looksLikeAgentMessageDelta(notification.Method) {
-			var payload codex.AgentMessageDeltaNotification
-			if json.Unmarshal(notification.Params, &payload) == nil {
+			if payload, ok := decodeAgentMessageDelta(notification.Params); ok {
 				a.store.AppendAgentMessageDelta(payload.ThreadID, payload.TurnID, payload.ItemID, payload.Delta)
 				a.broker.Publish("turn.agentMessage.delta", payload)
 			}
@@ -842,6 +847,39 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 func looksLikeAgentMessageDelta(method string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(method, "_", ""))
 	return strings.Contains(normalized, "agentmessage") && strings.Contains(normalized, "delta")
+}
+
+func decodeAgentMessageDelta(raw json.RawMessage) (codex.AgentMessageDeltaNotification, bool) {
+	var payload codex.AgentMessageDeltaNotification
+	if json.Unmarshal(raw, &payload) == nil && strings.TrimSpace(payload.ThreadID) != "" && strings.TrimSpace(payload.TurnID) != "" && payload.Delta != "" {
+		return payload, true
+	}
+
+	var object map[string]any
+	if json.Unmarshal(raw, &object) != nil {
+		return codex.AgentMessageDeltaNotification{}, false
+	}
+	payload = codex.AgentMessageDeltaNotification{
+		ThreadID: firstStringField(object, "threadId", "thread_id", "sessionId", "session_id"),
+		TurnID:   firstStringField(object, "turnId", "turn_id"),
+		ItemID:   firstStringField(object, "itemId", "item_id", "id"),
+		Delta:    firstStringField(object, "delta", "text", "textDelta", "text_delta", "content"),
+	}
+	if payload.Delta == "" {
+		if delta, ok := object["delta"].(map[string]any); ok {
+			payload.Delta = firstStringField(delta, "text", "delta", "content")
+		}
+	}
+	return payload, strings.TrimSpace(payload.ThreadID) != "" && strings.TrimSpace(payload.TurnID) != "" && payload.Delta != ""
+}
+
+func firstStringField(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if text, ok := values[key].(string); ok && strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+	return ""
 }
 
 func toSessionStartedPayload(thread codex.Thread) map[string]string {
