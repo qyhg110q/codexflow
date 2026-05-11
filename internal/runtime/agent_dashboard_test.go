@@ -38,7 +38,7 @@ func TestDashboardLoadedSessionsExcludeEndedSessions(t *testing.T) {
 
 	sessionStore.SetSessionEnded("ended-thread", true)
 
-	agent := &Agent{store: sessionStore}
+	agent := &Agent{store: sessionStore, broker: NewBroker()}
 	dashboard := agent.Dashboard()
 
 	if got, want := dashboard.Stats.LoadedSessions, 1; got != want {
@@ -137,7 +137,7 @@ func TestHandleNotificationIgnoresUserMessageItemEvents(t *testing.T) {
 		t.Fatalf("marshal notification: %v", err)
 	}
 
-	agent := &Agent{store: sessionStore}
+	agent := &Agent{store: sessionStore, broker: NewBroker()}
 	agent.handleNotification(t.Context(), codex.Notification{
 		Method: "item/started",
 		Params: params,
@@ -145,5 +145,61 @@ func TestHandleNotificationIgnoresUserMessageItemEvents(t *testing.T) {
 
 	if _, ok := sessionStore.SnapshotSession("thread-1"); ok {
 		t.Fatal("userMessage item notification should not create session state")
+	}
+}
+
+func TestHandleNotificationRecordsThreadTokenUsage(t *testing.T) {
+	sessionStore, err := store.New(nil)
+	if err != nil {
+		t.Fatalf("create session store: %v", err)
+	}
+
+	sessionStore.UpsertThread(codex.Thread{
+		ID:            "thread-1",
+		ModelProvider: "OpenAI",
+		CreatedAt:     100,
+		UpdatedAt:     200,
+		Status:        codex.ThreadStatus{Type: "idle"},
+		CWD:           "/tmp/project",
+	})
+
+	contextWindow := int64(272000)
+	params, err := json.Marshal(codex.ThreadTokenUsageUpdatedNotification{
+		ThreadID: "thread-1",
+		TurnID:   "turn-1",
+		TokenUsage: codex.ThreadTokenUsage{
+			Last: codex.TokenUsageBreakdown{
+				TotalTokens:  12000,
+				InputTokens:  11000,
+				OutputTokens: 1000,
+			},
+			Total: codex.TokenUsageBreakdown{
+				TotalTokens:  16000,
+				InputTokens:  14000,
+				OutputTokens: 2000,
+			},
+			ModelContextWindow: &contextWindow,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal notification: %v", err)
+	}
+
+	agent := &Agent{store: sessionStore, broker: NewBroker()}
+	agent.handleNotification(t.Context(), codex.Notification{
+		Method: "thread/tokenUsage/updated",
+		Params: params,
+	})
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatalf("SnapshotSession() missing record")
+	}
+	summary := toSessionSummary(record, 0)
+	if summary.ContextWindowUsage == nil || !summary.ContextWindowUsage.Available {
+		t.Fatal("summary should expose app-server token usage")
+	}
+	if got, want := summary.ContextWindowUsage.UsedTokens, int64(12000); got != want {
+		t.Fatalf("UsedTokens = %d, want %d", got, want)
 	}
 }

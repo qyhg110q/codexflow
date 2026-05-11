@@ -197,7 +197,7 @@ func (a *Agent) ContextWindowUsage(threadID string) (ContextWindowUsage, error) 
 	if !ok {
 		return ContextWindowUsage{}, errors.New("session not found")
 	}
-	usage := contextWindowUsageForThread(record.Thread.Path)
+	usage := contextWindowUsageForRecord(record)
 	if usage == nil {
 		return ContextWindowUsage{Available: false}, nil
 	}
@@ -821,6 +821,12 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 		if json.Unmarshal(notification.Params, &payload) == nil {
 			a.store.RecordPlan(payload)
 			a.broker.Publish("turn.plan.updated", payload)
+		}
+	case "thread/tokenUsage/updated":
+		var payload codex.ThreadTokenUsageUpdatedNotification
+		if json.Unmarshal(notification.Params, &payload) == nil {
+			a.store.RecordTokenUsage(payload, time.Now().UTC().Format(time.RFC3339))
+			a.broker.Publish("thread.tokenUsage.updated", payload)
 		}
 	case "item/started":
 		var payload codex.ItemStartedNotification

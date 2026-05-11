@@ -7,9 +7,13 @@ import (
 	"math"
 	"os"
 	"strings"
+
+	"codexflow/internal/codex"
+	"codexflow/internal/store"
 )
 
 const contextUsageSource = "codexTranscriptTokenCount"
+const appServerContextUsageSource = "codexAppServerTokenUsage"
 
 type transcriptEntry struct {
 	Timestamp string          `json:"timestamp"`
@@ -45,6 +49,49 @@ func contextWindowUsageForThread(threadPath *string) *ContextWindowUsage {
 		return nil
 	}
 	return &usage
+}
+
+func contextWindowUsageForRecord(record store.SessionRecord) *ContextWindowUsage {
+	if record.Runtime.TokenUsage != nil {
+		if usage, ok := contextWindowUsageFromAppServer(*record.Runtime.TokenUsage, record.Runtime.TokenUsageUpdatedAt); ok {
+			return usage.Clone()
+		}
+	}
+	return contextWindowUsageForThread(record.Thread.Path)
+}
+
+func contextWindowUsageFromAppServer(usage codex.ThreadTokenUsage, updatedAt string) (ContextWindowUsage, bool) {
+	if usage.ModelContextWindow == nil || *usage.ModelContextWindow <= 0 {
+		return ContextWindowUsage{}, false
+	}
+	contextWindow := *usage.ModelContextWindow
+	lastUsage := toTokenUsageBreakdown(usage.Last)
+	totalUsage := toTokenUsageBreakdown(usage.Total)
+	usedTokens := lastUsage.TotalTokens
+	if usedTokens <= 0 {
+		usedTokens = lastUsage.InputTokens + lastUsage.OutputTokens
+	}
+	if usedTokens <= 0 {
+		return ContextWindowUsage{}, false
+	}
+
+	ratio := float64(usedTokens) / float64(contextWindow)
+	remainingTokens := contextWindow - usedTokens
+	if remainingTokens < 0 {
+		remainingTokens = 0
+	}
+	return ContextWindowUsage{
+		Available:       true,
+		UsedTokens:      usedTokens,
+		ContextWindow:   contextWindow,
+		RemainingTokens: remainingTokens,
+		Ratio:           ratio,
+		Percent:         int(math.Round(ratio * 100)),
+		LastTokenUsage:  lastUsage,
+		TotalTokenUsage: totalUsage,
+		UpdatedAt:       updatedAt,
+		Source:          appServerContextUsageSource,
+	}, true
 }
 
 func readContextWindowUsage(path string) (ContextWindowUsage, error) {
@@ -123,6 +170,21 @@ func toTokenUsage(usage transcriptTokenUsage) TokenUsage {
 		InputTokens:           usage.InputTokens,
 		CachedInputTokens:     usage.CachedInputTokens,
 		NonCachedInputTokens:  usage.NonCachedInputTokens,
+		OutputTokens:          usage.OutputTokens,
+		ReasoningOutputTokens: usage.ReasoningOutputTokens,
+		TotalTokens:           usage.TotalTokens,
+	}
+}
+
+func toTokenUsageBreakdown(usage codex.TokenUsageBreakdown) TokenUsage {
+	nonCachedInputTokens := usage.InputTokens - usage.CachedInputTokens
+	if nonCachedInputTokens < 0 {
+		nonCachedInputTokens = 0
+	}
+	return TokenUsage{
+		InputTokens:           usage.InputTokens,
+		CachedInputTokens:     usage.CachedInputTokens,
+		NonCachedInputTokens:  nonCachedInputTokens,
 		OutputTokens:          usage.OutputTokens,
 		ReasoningOutputTokens: usage.ReasoningOutputTokens,
 		TotalTokens:           usage.TotalTokens,

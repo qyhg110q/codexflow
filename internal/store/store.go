@@ -13,11 +13,13 @@ import (
 )
 
 type SessionRuntime struct {
-	LatestDiffByTurn  map[string]string
-	LatestPlanByTurn  map[string]codex.TurnPlanUpdatedNotification
-	CurrentTurnID     string
-	RuntimeAttachMode string
-	Ended             bool
+	LatestDiffByTurn    map[string]string
+	LatestPlanByTurn    map[string]codex.TurnPlanUpdatedNotification
+	TokenUsage          *codex.ThreadTokenUsage
+	TokenUsageUpdatedAt string
+	CurrentTurnID       string
+	RuntimeAttachMode   string
+	Ended               bool
 }
 
 type SessionBinding struct {
@@ -452,6 +454,19 @@ func (s *Store) RecordPlan(notification codex.TurnPlanUpdatedNotification) {
 	record.Runtime.LatestPlanByTurn[notification.TurnID] = notification
 }
 
+func (s *Store) RecordTokenUsage(notification codex.ThreadTokenUsageUpdatedNotification, updatedAt string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record := s.ensureSessionLocked(notification.ThreadID)
+	usage := notification.TokenUsage
+	record.Runtime.TokenUsage = &usage
+	record.Runtime.TokenUsageUpdatedAt = updatedAt
+	if notification.TurnID != "" {
+		record.Runtime.CurrentTurnID = notification.TurnID
+	}
+}
+
 func (s *Store) SnapshotSessions() []SessionRecord {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -608,11 +623,13 @@ func cloneSessionRecord(record SessionRecord) SessionRecord {
 	cloned := record
 	cloned.Thread = cloneThread(record.Thread)
 	cloned.Runtime = SessionRuntime{
-		LatestDiffByTurn:  make(map[string]string, len(record.Runtime.LatestDiffByTurn)),
-		LatestPlanByTurn:  make(map[string]codex.TurnPlanUpdatedNotification, len(record.Runtime.LatestPlanByTurn)),
-		CurrentTurnID:     record.Runtime.CurrentTurnID,
-		RuntimeAttachMode: record.Runtime.RuntimeAttachMode,
-		Ended:             record.Runtime.Ended,
+		LatestDiffByTurn:    make(map[string]string, len(record.Runtime.LatestDiffByTurn)),
+		LatestPlanByTurn:    make(map[string]codex.TurnPlanUpdatedNotification, len(record.Runtime.LatestPlanByTurn)),
+		TokenUsage:          cloneTokenUsage(record.Runtime.TokenUsage),
+		TokenUsageUpdatedAt: record.Runtime.TokenUsageUpdatedAt,
+		CurrentTurnID:       record.Runtime.CurrentTurnID,
+		RuntimeAttachMode:   record.Runtime.RuntimeAttachMode,
+		Ended:               record.Runtime.Ended,
 	}
 	for key, value := range record.Runtime.LatestDiffByTurn {
 		cloned.Runtime.LatestDiffByTurn[key] = value
@@ -621,6 +638,18 @@ func cloneSessionRecord(record SessionRecord) SessionRecord {
 		cloned.Runtime.LatestPlanByTurn[key] = value
 	}
 	return cloned
+}
+
+func cloneTokenUsage(usage *codex.ThreadTokenUsage) *codex.ThreadTokenUsage {
+	if usage == nil {
+		return nil
+	}
+	cloned := *usage
+	if usage.ModelContextWindow != nil {
+		value := *usage.ModelContextWindow
+		cloned.ModelContextWindow = &value
+	}
+	return &cloned
 }
 
 func cloneThread(thread codex.Thread) codex.Thread {

@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"codexflow/internal/codex"
+	"codexflow/internal/store"
 )
 
 func TestReadContextWindowUsageUsesLatestTokenCount(t *testing.T) {
@@ -32,6 +35,50 @@ func TestReadContextWindowUsageUsesLatestTokenCount(t *testing.T) {
 		t.Fatalf("TotalTokenUsage.TotalTokens = %d, want %d", got, want)
 	}
 	if got, want := usage.Source, contextUsageSource; got != want {
+		t.Fatalf("Source = %q, want %q", got, want)
+	}
+}
+
+func TestContextWindowUsageForRecordUsesAppServerTokenUsageWithoutTranscriptPath(t *testing.T) {
+	contextWindow := int64(272000)
+	record := store.SessionRecord{
+		Thread: codex.Thread{ID: "thread-1"},
+		Runtime: store.SessionRuntime{
+			TokenUsage: &codex.ThreadTokenUsage{
+				Last: codex.TokenUsageBreakdown{
+					TotalTokens:           3268,
+					InputTokens:           2654,
+					CachedInputTokens:     2432,
+					OutputTokens:          614,
+					ReasoningOutputTokens: 576,
+				},
+				Total: codex.TokenUsageBreakdown{
+					TotalTokens:           4000,
+					InputTokens:           3000,
+					CachedInputTokens:     2400,
+					OutputTokens:          1000,
+					ReasoningOutputTokens: 700,
+				},
+				ModelContextWindow: &contextWindow,
+			},
+			TokenUsageUpdatedAt: "2026-05-11T15:00:00Z",
+		},
+	}
+
+	usage := contextWindowUsageForRecord(record)
+	if usage == nil || !usage.Available {
+		t.Fatal("usage should be available")
+	}
+	if got, want := usage.UsedTokens, int64(3268); got != want {
+		t.Fatalf("UsedTokens = %d, want %d", got, want)
+	}
+	if got, want := usage.ContextWindow, contextWindow; got != want {
+		t.Fatalf("ContextWindow = %d, want %d", got, want)
+	}
+	if got, want := usage.TotalTokenUsage.TotalTokens, int64(4000); got != want {
+		t.Fatalf("TotalTokenUsage.TotalTokens = %d, want %d", got, want)
+	}
+	if got, want := usage.Source, appServerContextUsageSource; got != want {
 		t.Fatalf("Source = %q, want %q", got, want)
 	}
 }

@@ -88,6 +88,11 @@ type ContextWindowUsage struct {
 	Source          string     `json:"source"`
 }
 
+func (u ContextWindowUsage) Clone() *ContextWindowUsage {
+	cloned := u
+	return &cloned
+}
+
 type TokenUsage struct {
 	InputTokens           int64 `json:"inputTokens"`
 	CachedInputTokens     int64 `json:"cachedInputTokens"`
