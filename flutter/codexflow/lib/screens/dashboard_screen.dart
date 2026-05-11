@@ -586,7 +586,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       _submitError = '';
     });
     final navigator = Navigator.of(context);
-    final success = await model.startSession(
+    final createdSession = await model.startSession(
       cwd: cwd,
       prompt: prompt,
       agentId: model.selectedStartAgentId,
@@ -596,24 +596,19 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     }
     setState(() {
       _isCreating = false;
-      if (!success) {
+      if (createdSession == null) {
         _submitError = model.connectionError.isNotEmpty
             ? model.connectionError
             : '创建会话失败，请检查 Agent 状态和输入内容。';
       }
     });
-    if (success) {
+    if (createdSession != null) {
       _promptController.clear();
-      final latest = model.dashboard.sessions.isEmpty
-          ? null
-          : model.dashboard.sessions.first;
-      if (latest != null) {
-        navigator.push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => SessionDetailScreen(sessionId: latest.id),
-          ),
-        );
-      }
+      navigator.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => SessionDetailScreen(sessionId: createdSession.id),
+        ),
+      );
     }
   }
 
@@ -1585,7 +1580,7 @@ class _NewSessionSheetState extends State<NewSessionSheet> {
                                         _submitError = '';
                                       });
 
-                                      final success = await appModel
+                                      final createdSession = await appModel
                                           .startSession(
                                             cwd: trimmedCwd,
                                             prompt: trimmedPrompt,
@@ -1597,7 +1592,7 @@ class _NewSessionSheetState extends State<NewSessionSheet> {
                                         return;
                                       }
 
-                                      if (success) {
+                                      if (createdSession != null) {
                                         navigator.pop();
                                       } else {
                                         setState(() {

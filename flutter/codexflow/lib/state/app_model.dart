@@ -552,7 +552,7 @@ class AppModel extends ChangeNotifier {
     return parts.join('\n');
   }
 
-  Future<bool> startSession({
+  Future<SessionSummary?> startSession({
     required String cwd,
     required String prompt,
     required String agentId,
@@ -568,12 +568,12 @@ class AppModel extends ChangeNotifier {
       showNotice('会话已创建。');
       await refreshDashboard();
       await loadSession(createdSession.id);
-      return true;
+      return createdSession;
     } catch (error) {
       connectionError = error.toString();
       showNotice('创建会话失败：${error.toString()}', isError: true);
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
