@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Completed.
 
 ## Goal
 
@@ -19,6 +19,7 @@ Polish the dashboard pill context ring so it fits the current Flutter visual sys
 - 2026-05-11: Started task and confirmed repository routing plus active surfaces.
 - 2026-05-11: Adjusted the Flutter session detail app bar context ring from a dark block to a light, bordered indicator using existing palette tones.
 - 2026-05-11: Found real Codex usage in transcript `event_msg` records with payload type `token_count`; implemented a Go parser and API model that exposes latest `last_token_usage` against `model_context_window`.
+- 2026-05-11: Committed visual polish and real context window usage separately, then completed Android APK validation.
 
 ## Surprises & Discoveries
 
@@ -31,8 +32,14 @@ Polish the dashboard pill context ring so it fits the current Flutter visual sys
 
 ## Validation
 
-- Pending.
+- `go test ./internal/runtime` passed.
+- `flutter analyze` passed.
+- `go test ./...` passed.
+- `flutter test` passed.
+- `.\build_android_apk.ps1` passed and produced `flutter/codexflow/build/app/outputs/flutter-apk/app-release.apk`.
 
 ## Outcomes & Retrospective
 
-- Pending.
+- The app bar context ring now matches the light CodexFlow UI palette.
+- Context window usage now comes from Codex transcript `token_count` records instead of client-side token estimation.
+- The Go Agent exposes usage in session summaries/details and through `GET /api/v1/sessions/:id/context-window`.
