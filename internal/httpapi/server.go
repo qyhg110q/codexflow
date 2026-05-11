@@ -150,6 +150,17 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 
 	action := strings.Join(parts[1:], "/")
 	switch action {
+	case "context-window":
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w)
+			return
+		}
+		usage, err := s.agent.ContextWindowUsage(sessionID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, usage)
 	case "resume":
 		if r.Method != http.MethodPost {
 			methodNotAllowed(w)

@@ -41,6 +41,19 @@ int asInt(Object? value, [int fallback = 0]) {
   return fallback;
 }
 
+double asDouble(Object? value, [double fallback = 0]) {
+  if (value is double) {
+    return value;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value) ?? fallback;
+  }
+  return fallback;
+}
+
 bool asBool(Object? value, [bool fallback = false]) {
   if (value is bool) {
     return value;
@@ -289,6 +302,7 @@ class SessionSummary {
     required this.resumeAvailable,
     required this.resumeBlockedReason,
     required this.ended,
+    required this.contextWindowUsage,
   });
 
   final String id;
@@ -316,6 +330,7 @@ class SessionSummary {
   final bool resumeAvailable;
   final String resumeBlockedReason;
   final bool ended;
+  final ContextWindowUsage contextWindowUsage;
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) {
     return SessionSummary(
@@ -346,6 +361,9 @@ class SessionSummary {
       resumeAvailable: asBool(json['resumeAvailable'], true),
       resumeBlockedReason: asString(json['resumeBlockedReason']),
       ended: asBool(json['ended']),
+      contextWindowUsage: ContextWindowUsage.fromJson(
+        asMap(json['contextWindowUsage']),
+      ),
     );
   }
 
@@ -474,6 +492,127 @@ class SessionSummary {
         .join(' ')
         .trim();
   }
+}
+
+class ContextWindowUsage {
+  const ContextWindowUsage({
+    required this.available,
+    required this.usedTokens,
+    required this.contextWindow,
+    required this.remainingTokens,
+    required this.ratio,
+    required this.percent,
+    required this.lastTokenUsage,
+    required this.totalTokenUsage,
+    required this.updatedAt,
+    required this.source,
+  });
+
+  final bool available;
+  final int usedTokens;
+  final int contextWindow;
+  final int remainingTokens;
+  final double ratio;
+  final int percent;
+  final TokenUsage lastTokenUsage;
+  final TokenUsage totalTokenUsage;
+  final String updatedAt;
+  final String source;
+
+  factory ContextWindowUsage.empty() {
+    return ContextWindowUsage(
+      available: false,
+      usedTokens: 0,
+      contextWindow: 0,
+      remainingTokens: 0,
+      ratio: 0,
+      percent: 0,
+      lastTokenUsage: TokenUsage.empty(),
+      totalTokenUsage: TokenUsage.empty(),
+      updatedAt: '',
+      source: '',
+    );
+  }
+
+  factory ContextWindowUsage.fromJson(Map<String, dynamic> json) {
+    if (json.isEmpty) {
+      return ContextWindowUsage.empty();
+    }
+    return ContextWindowUsage(
+      available: asBool(json['available']),
+      usedTokens: asInt(json['usedTokens']),
+      contextWindow: asInt(json['contextWindow']),
+      remainingTokens: asInt(json['remainingTokens']),
+      ratio: asDouble(json['ratio']),
+      percent: asInt(json['percent']),
+      lastTokenUsage: TokenUsage.fromJson(asMap(json['lastTokenUsage'])),
+      totalTokenUsage: TokenUsage.fromJson(asMap(json['totalTokenUsage'])),
+      updatedAt: asString(json['updatedAt']),
+      source: asString(json['source']),
+    );
+  }
+
+  String get percentLabel => available ? '$percent%' : '未上报';
+
+  String get tokenLabel {
+    if (!available) {
+      return '无真实用量';
+    }
+    return '${_compactNumber(usedTokens)} / ${_compactNumber(contextWindow)}';
+  }
+}
+
+class TokenUsage {
+  const TokenUsage({
+    required this.inputTokens,
+    required this.cachedInputTokens,
+    required this.nonCachedInputTokens,
+    required this.outputTokens,
+    required this.reasoningOutputTokens,
+    required this.totalTokens,
+  });
+
+  final int inputTokens;
+  final int cachedInputTokens;
+  final int nonCachedInputTokens;
+  final int outputTokens;
+  final int reasoningOutputTokens;
+  final int totalTokens;
+
+  factory TokenUsage.empty() {
+    return const TokenUsage(
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      nonCachedInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+      totalTokens: 0,
+    );
+  }
+
+  factory TokenUsage.fromJson(Map<String, dynamic> json) {
+    if (json.isEmpty) {
+      return TokenUsage.empty();
+    }
+    return TokenUsage(
+      inputTokens: asInt(json['inputTokens']),
+      cachedInputTokens: asInt(json['cachedInputTokens']),
+      nonCachedInputTokens: asInt(json['nonCachedInputTokens']),
+      outputTokens: asInt(json['outputTokens']),
+      reasoningOutputTokens: asInt(json['reasoningOutputTokens']),
+      totalTokens: asInt(json['totalTokens']),
+    );
+  }
+}
+
+String _compactNumber(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).round()}K';
+  }
+  return value.toString();
 }
 
 class SessionDetail {

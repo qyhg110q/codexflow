@@ -311,7 +311,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    _ContextUsageIndicator(detail: detail, summary: summary),
+                    _ContextUsageIndicator(summary: summary),
                     const SizedBox(width: 8),
                     StatusPill(
                       status: summary.status,
@@ -613,24 +613,28 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 }
 
 class _ContextUsageIndicator extends StatelessWidget {
-  const _ContextUsageIndicator({required this.detail, required this.summary});
+  const _ContextUsageIndicator({required this.summary});
 
-  final SessionDetail? detail;
   final SessionSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final usage = _ContextUsage.from(detail: detail, summary: summary);
-    final tone = usage.ratio >= 0.9
+    final usage = _ContextUsage.from(summary: summary);
+    final tone = !usage.available
+        ? Palette.faintInk
+        : usage.ratio >= 0.9
         ? Palette.danger
         : usage.ratio >= 0.72
         ? Palette.warning
         : Palette.softBlue;
+    final tooltip = usage.available
+        ? '上下文使用 ${usage.percentLabel} · ${usage.tokenLabel}'
+        : '上下文用量暂未上报';
 
     return Tooltip(
-      message: '上下文使用约 ${usage.percentLabel} · ${usage.tokenLabel}',
+      message: tooltip,
       child: Semantics(
-        label: '上下文使用约 ${usage.percentLabel}',
+        label: tooltip,
         child: Container(
           width: 30,
           height: 30,
@@ -684,91 +688,35 @@ class _ContextUsagePainter extends CustomPainter {
 }
 
 class _ContextUsage {
-  const _ContextUsage({required this.tokens, required this.limit});
+  const _ContextUsage({
+    required this.available,
+    required this.ratio,
+    required this.percentLabel,
+    required this.tokenLabel,
+  });
 
-  final int tokens;
-  final int limit;
+  final bool available;
+  final double ratio;
+  final String percentLabel;
+  final String tokenLabel;
 
-  double get ratio {
-    if (limit <= 0) {
-      return 0;
+  static _ContextUsage from({required SessionSummary summary}) {
+    final usage = summary.contextWindowUsage;
+    if (!usage.available) {
+      return const _ContextUsage(
+        available: false,
+        ratio: 0,
+        percentLabel: '未上报',
+        tokenLabel: '无真实用量',
+      );
     }
-    return (tokens / limit).clamp(0, 0.98);
-  }
-
-  String get percentLabel => '${(ratio * 100).round()}%';
-
-  String get tokenLabel =>
-      '${_compactNumber(tokens)} / ${_compactNumber(limit)}';
-
-  static _ContextUsage from({
-    required SessionDetail? detail,
-    required SessionSummary summary,
-  }) {
-    final turns = detail?.turns ?? const <TurnDetail>[];
-    var tokens = 0;
-    for (final turn in turns) {
-      tokens += _estimateTokens(turn.planExplanation);
-      tokens += _estimateTokens(turn.error);
-      for (final step in turn.plan) {
-        tokens += _estimateTokens(step.step);
-      }
-      for (final item in turn.items) {
-        tokens += _estimateTokens(item.title);
-        tokens += _estimateTokens(item.body);
-        tokens += _estimateTokens(item.auxiliary);
-      }
-    }
-
-    if (tokens == 0) {
-      tokens = _estimateTokens(summary.preview);
-    }
-
     return _ContextUsage(
-      tokens: tokens,
-      limit: _contextLimitFor(summary.modelProvider),
+      available: true,
+      ratio: usage.ratio.clamp(0, 0.98),
+      percentLabel: usage.percentLabel,
+      tokenLabel: usage.tokenLabel,
     );
   }
-}
-
-int _contextLimitFor(String modelProvider) {
-  final provider = modelProvider.trim().toLowerCase();
-  if (provider.contains('anthropic') || provider.contains('claude')) {
-    return 200000;
-  }
-  return 200000;
-}
-
-int _estimateTokens(String value) {
-  final trimmed = value.trim();
-  if (trimmed.isEmpty) {
-    return 0;
-  }
-
-  var cjkChars = 0;
-  var asciiChars = 0;
-  for (final rune in trimmed.runes) {
-    if ((rune >= 0x4E00 && rune <= 0x9FFF) ||
-        (rune >= 0x3400 && rune <= 0x4DBF) ||
-        (rune >= 0x3040 && rune <= 0x30FF) ||
-        (rune >= 0xAC00 && rune <= 0xD7AF)) {
-      cjkChars += 1;
-    } else if (String.fromCharCode(rune).trim().isNotEmpty) {
-      asciiChars += 1;
-    }
-  }
-  final estimate = (cjkChars * 1.15) + (asciiChars / 4.0);
-  return math.max(1, estimate.ceil());
-}
-
-String _compactNumber(int value) {
-  if (value >= 1000000) {
-    return '${(value / 1000000).toStringAsFixed(1)}M';
-  }
-  if (value >= 1000) {
-    return '${(value / 1000).round()}K';
-  }
-  return value.toString();
 }
 
 class _JumpToLatestButton extends StatelessWidget {

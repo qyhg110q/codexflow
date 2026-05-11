@@ -42,36 +42,59 @@ type DashboardStats struct {
 }
 
 type SessionSummary struct {
-	ID                  string   `json:"id"`
-	AgentID             string   `json:"agentId"`
-	Name                string   `json:"name"`
-	Preview             string   `json:"preview"`
-	CWD                 string   `json:"cwd"`
-	Source              string   `json:"source"`
-	Status              string   `json:"status"`
-	ActiveFlags         []string `json:"activeFlags"`
-	Loaded              bool     `json:"loaded"`
-	UpdatedAt           int64    `json:"updatedAt"`
-	CreatedAt           int64    `json:"createdAt"`
-	ModelProvider       string   `json:"modelProvider"`
-	Branch              string   `json:"branch"`
-	PendingApprovals    int      `json:"pendingApprovals"`
-	LastTurnID          string   `json:"lastTurnId"`
-	LastTurnStatus      string   `json:"lastTurnStatus"`
-	AgentNickname       string   `json:"agentNickname"`
-	AgentRole           string   `json:"agentRole"`
-	LifecycleStage      string   `json:"lifecycleStage"`
-	HistoryAvailable    bool     `json:"historyAvailable"`
-	RuntimeAvailable    bool     `json:"runtimeAvailable"`
-	RuntimeAttachMode   string   `json:"runtimeAttachMode"`
-	ResumeAvailable     bool     `json:"resumeAvailable"`
-	ResumeBlockedReason string   `json:"resumeBlockedReason"`
-	Ended               bool     `json:"ended"`
+	ID                  string              `json:"id"`
+	AgentID             string              `json:"agentId"`
+	Name                string              `json:"name"`
+	Preview             string              `json:"preview"`
+	CWD                 string              `json:"cwd"`
+	Source              string              `json:"source"`
+	Status              string              `json:"status"`
+	ActiveFlags         []string            `json:"activeFlags"`
+	Loaded              bool                `json:"loaded"`
+	UpdatedAt           int64               `json:"updatedAt"`
+	CreatedAt           int64               `json:"createdAt"`
+	ModelProvider       string              `json:"modelProvider"`
+	Branch              string              `json:"branch"`
+	PendingApprovals    int                 `json:"pendingApprovals"`
+	LastTurnID          string              `json:"lastTurnId"`
+	LastTurnStatus      string              `json:"lastTurnStatus"`
+	AgentNickname       string              `json:"agentNickname"`
+	AgentRole           string              `json:"agentRole"`
+	LifecycleStage      string              `json:"lifecycleStage"`
+	HistoryAvailable    bool                `json:"historyAvailable"`
+	RuntimeAvailable    bool                `json:"runtimeAvailable"`
+	RuntimeAttachMode   string              `json:"runtimeAttachMode"`
+	ResumeAvailable     bool                `json:"resumeAvailable"`
+	ResumeBlockedReason string              `json:"resumeBlockedReason"`
+	Ended               bool                `json:"ended"`
+	ContextWindowUsage  *ContextWindowUsage `json:"contextWindowUsage,omitempty"`
 }
 
 type SessionDetail struct {
 	Summary SessionSummary `json:"summary"`
 	Turns   []TurnDetail   `json:"turns"`
+}
+
+type ContextWindowUsage struct {
+	Available       bool       `json:"available"`
+	UsedTokens      int64      `json:"usedTokens"`
+	ContextWindow   int64      `json:"contextWindow"`
+	RemainingTokens int64      `json:"remainingTokens"`
+	Ratio           float64    `json:"ratio"`
+	Percent         int        `json:"percent"`
+	LastTokenUsage  TokenUsage `json:"lastTokenUsage"`
+	TotalTokenUsage TokenUsage `json:"totalTokenUsage"`
+	UpdatedAt       string     `json:"updatedAt"`
+	Source          string     `json:"source"`
+}
+
+type TokenUsage struct {
+	InputTokens           int64 `json:"inputTokens"`
+	CachedInputTokens     int64 `json:"cachedInputTokens"`
+	NonCachedInputTokens  int64 `json:"nonCachedInputTokens"`
+	OutputTokens          int64 `json:"outputTokens"`
+	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
+	TotalTokens           int64 `json:"totalTokens"`
 }
 
 type TurnDetail struct {

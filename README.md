@@ -388,6 +388,7 @@ http://192.168.1.10:4318
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/:id`
+- `GET /api/v1/sessions/:id/context-window`
 - `POST /api/v1/sessions/:id/resume`
 - `POST /api/v1/sessions/:id/end`
 - `POST /api/v1/sessions/:id/archive`

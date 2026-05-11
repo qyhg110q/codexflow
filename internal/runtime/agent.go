@@ -192,6 +192,18 @@ func (a *Agent) SessionDetail(ctx context.Context, threadID string) (SessionDeta
 	return toSessionDetail(record, pendingCount), nil
 }
 
+func (a *Agent) ContextWindowUsage(threadID string) (ContextWindowUsage, error) {
+	record, ok := a.store.SnapshotSession(threadID)
+	if !ok {
+		return ContextWindowUsage{}, errors.New("session not found")
+	}
+	usage := contextWindowUsageForThread(record.Thread.Path)
+	if usage == nil {
+		return ContextWindowUsage{Available: false}, nil
+	}
+	return *usage, nil
+}
+
 func (a *Agent) PendingRequests() []PendingRequestView {
 	pending := a.store.SnapshotPending()
 	views := make([]PendingRequestView, 0, len(pending))

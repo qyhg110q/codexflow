@@ -54,6 +54,7 @@ func toSessionSummary(record store.SessionRecord, pendingApprovals int) SessionS
 		ResumeAvailable:     resumeAvailable,
 		ResumeBlockedReason: resumeBlockedReason,
 		Ended:               record.Runtime.Ended,
+		ContextWindowUsage:  contextWindowUsageForThread(record.Thread.Path),
 	}
 }
 
