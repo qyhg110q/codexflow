@@ -2,19 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/app_models.dart';
+import '../navigation/app_navigation.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
 import 'approval_screen.dart';
-import 'session_detail_screen.dart';
-
-void _openSessionChatPage(BuildContext context, String sessionId) {
-  Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => SessionDetailScreen(sessionId: sessionId),
-    ),
-  );
-}
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -610,13 +602,8 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       }
     });
     if (createdSession != null) {
-      final sessionId = createdSession.id;
       _promptController.clear();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _openSessionChatPage(this.context, sessionId);
-        }
-      });
+      openSessionChatPage(createdSession.id);
     }
   }
 
@@ -1214,7 +1201,7 @@ class SessionRow extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context) {
-    _openSessionChatPage(context, session.id);
+    openSessionChatPage(session.id);
   }
 
   Future<void> _handlePrimaryAction(BuildContext context) async {

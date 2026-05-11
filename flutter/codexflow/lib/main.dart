@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/approval_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/settings_screen.dart';
+import 'navigation/app_navigation.dart';
 import 'state/app_model.dart';
 import 'theme/palette.dart';
 import 'widgets/common.dart';
@@ -27,6 +28,7 @@ class CodexFlowApp extends StatelessWidget {
     return ChangeNotifierProvider<AppModel>(
       create: (_) => AppModel(prefs)..bootstrap(),
       child: MaterialApp(
+        navigatorKey: appNavigatorKey,
         title: 'CodexFlow',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
