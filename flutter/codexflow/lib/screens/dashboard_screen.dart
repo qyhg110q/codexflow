@@ -8,6 +8,14 @@ import '../widgets/common.dart';
 import 'approval_screen.dart';
 import 'session_detail_screen.dart';
 
+void _openSessionChatPage(BuildContext context, String sessionId) {
+  Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => SessionDetailScreen(sessionId: sessionId),
+    ),
+  );
+}
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -585,7 +593,6 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       _isCreating = true;
       _submitError = '';
     });
-    final navigator = Navigator.of(context);
     final createdSession = await model.startSession(
       cwd: cwd,
       prompt: prompt,
@@ -603,12 +610,13 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       }
     });
     if (createdSession != null) {
+      final sessionId = createdSession.id;
       _promptController.clear();
-      navigator.push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => SessionDetailScreen(sessionId: createdSession.id),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openSessionChatPage(this.context, sessionId);
+        }
+      });
     }
   }
 
@@ -1206,11 +1214,7 @@ class SessionRow extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context) {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => SessionDetailScreen(sessionId: session.id),
-      ),
-    );
+    _openSessionChatPage(context, session.id);
   }
 
   Future<void> _handlePrimaryAction(BuildContext context) async {

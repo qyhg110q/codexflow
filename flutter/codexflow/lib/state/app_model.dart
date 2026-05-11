@@ -566,8 +566,7 @@ class AppModel extends ChangeNotifier {
       _upsertSessionSummary(createdSession);
       connectionError = '';
       showNotice('会话已创建。');
-      await refreshDashboard();
-      await loadSession(createdSession.id);
+      unawaited(_refreshCreatedSession(createdSession.id));
       return createdSession;
     } catch (error) {
       connectionError = error.toString();
@@ -575,6 +574,11 @@ class AppModel extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+  }
+
+  Future<void> _refreshCreatedSession(String sessionId) async {
+    await refreshDashboard();
+    await loadSession(sessionId);
   }
 
   Future<void> resumeSession(SessionSummary session) async {
