@@ -29,6 +29,14 @@ type ThreadResumeResponse struct {
 	Thread Thread `json:"thread"`
 }
 
+type ThreadForkResponse struct {
+	Thread Thread `json:"thread"`
+}
+
+type ThreadRollbackResponse struct {
+	Thread Thread `json:"thread"`
+}
+
 type AppsListResponse struct {
 	Data       []AppInfo `json:"data"`
 	NextCursor *string   `json:"nextCursor"`

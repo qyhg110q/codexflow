@@ -625,6 +625,35 @@ class AppModel extends ChangeNotifier {
     }
   }
 
+  Future<SessionSummary?> branchSession({
+    required SessionSummary session,
+    required String turnId,
+  }) async {
+    if (session.isClaudeSession) {
+      const message = 'Claude 会话暂不支持分支。';
+      connectionError = message;
+      showNotice(message, isError: true);
+      notifyListeners();
+      return null;
+    }
+    try {
+      final branchedSession = await _client().forkSession(
+        id: session.id,
+        turnId: turnId,
+      );
+      _upsertSessionSummary(branchedSession);
+      connectionError = '';
+      showNotice('已创建分支会话。');
+      unawaited(_refreshCreatedSession(branchedSession.id));
+      return branchedSession;
+    } catch (error) {
+      connectionError = error.toString();
+      showNotice('创建分支失败：${error.toString()}', isError: true);
+      notifyListeners();
+      return null;
+    }
+  }
+
   Future<void> archiveSession(SessionSummary session) async {
     try {
       await _client().archiveSession(session.id);

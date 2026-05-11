@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/app_models.dart';
+import '../navigation/app_navigation.dart';
 import '../services/api_client.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
@@ -267,6 +268,18 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
   }
 
+  Future<void> _branchFromSession(SessionSummary summary, String turnId) async {
+    final model = context.read<AppModel>();
+    final branchedSession = await model.branchSession(
+      session: summary,
+      turnId: turnId,
+    );
+    if (!mounted || branchedSession == null) {
+      return;
+    }
+    openSessionChatPage(branchedSession.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
@@ -438,7 +451,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         );
       }
       for (final item in turn.items) {
-        final bubble = _bubbleForItem(item);
+        final bubble = _bubbleForItem(item, summary, turn);
         if (bubble == null) {
           continue;
         }
@@ -496,7 +509,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     return parts.join(' · ');
   }
 
-  Widget? _bubbleForItem(TurnItem item) {
+  Widget? _bubbleForItem(
+    TurnItem item,
+    SessionSummary? summary,
+    TurnDetail turn,
+  ) {
     final body = item.body.trim();
     switch (item.type) {
       case 'userMessage':
@@ -508,7 +525,13 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         if (body.isEmpty) {
           return null;
         }
-        return _ChatBubble(role: _BubbleRole.agent, text: body);
+        return _ChatBubble(
+          role: _BubbleRole.agent,
+          text: body,
+          onBranch: summary != null && !summary.isClaudeSession
+              ? () => _branchFromSession(summary, turn.id)
+              : null,
+        );
       case 'reasoning':
       case 'plan':
         if (body.isEmpty) {
@@ -1077,10 +1100,11 @@ class _LoadingBubble extends StatelessWidget {
 enum _BubbleRole { user, agent }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.role, required this.text});
+  const _ChatBubble({required this.role, required this.text, this.onBranch});
 
   final _BubbleRole role;
   final String text;
+  final Future<void> Function()? onBranch;
 
   @override
   Widget build(BuildContext context) {
@@ -1136,6 +1160,7 @@ class _ChatBubble extends StatelessWidget {
           bubble,
           const SizedBox(height: 4),
           _AgentMessageActions(
+            onBranch: onBranch,
             onCopy: () async {
               await Clipboard.setData(ClipboardData(text: text));
               if (!context.mounted) {
@@ -1168,9 +1193,10 @@ class _ChatBubble extends StatelessWidget {
 }
 
 class _AgentMessageActions extends StatelessWidget {
-  const _AgentMessageActions({required this.onCopy});
+  const _AgentMessageActions({required this.onCopy, this.onBranch});
 
   final Future<void> Function() onCopy;
+  final Future<void> Function()? onBranch;
 
   @override
   Widget build(BuildContext context) {
@@ -1184,6 +1210,12 @@ class _AgentMessageActions extends StatelessWidget {
             tooltip: '复制回复',
             onPressed: () => unawaited(onCopy()),
           ),
+          if (onBranch != null)
+            _AgentMessageActionButton(
+              icon: Icons.call_split_rounded,
+              tooltip: '创建分支',
+              onPressed: () => unawaited(onBranch!()),
+            ),
         ],
       ),
     );

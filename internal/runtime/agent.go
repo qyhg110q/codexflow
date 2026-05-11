@@ -516,6 +516,72 @@ func (a *Agent) ResumeSession(ctx context.Context, threadID string) (SessionSumm
 	return summary, nil
 }
 
+func (a *Agent) ForkSession(ctx context.Context, threadID, endpointTurnID string) (SessionSummary, error) {
+	if isClaudeThreadID(threadID) {
+		return SessionSummary{}, errors.New("branching Claude sessions is not supported")
+	}
+
+	var response codex.ThreadForkResponse
+	if err := a.client.Call(ctx, "thread/fork", map[string]any{
+		"threadId":               threadID,
+		"persistExtendedHistory": true,
+	}, &response); err != nil {
+		return SessionSummary{}, err
+	}
+
+	if strings.TrimSpace(response.Thread.ID) == "" {
+		return SessionSummary{}, errors.New("forked thread response is missing thread id")
+	}
+
+	thread := response.Thread
+	if trimmedEndpointTurnID := strings.TrimSpace(endpointTurnID); trimmedEndpointTurnID != "" {
+		dropCount, err := turnsToDropAfter(thread.Turns, trimmedEndpointTurnID)
+		if err != nil {
+			return SessionSummary{}, err
+		}
+		if dropCount > 0 {
+			rollback, err := a.rollbackForkedSession(ctx, thread.ID, dropCount)
+			if err != nil {
+				return SessionSummary{}, err
+			}
+			thread = rollback
+		}
+	}
+
+	a.store.UpsertThread(thread)
+	a.store.SetSessionEnded(thread.ID, false)
+	a.store.SetSessionManaged(thread.ID, true)
+	a.store.SetSessionLoaded(thread.ID, true)
+
+	record, _ := a.store.SnapshotSession(thread.ID)
+	summary := toSessionSummary(record, 0)
+	a.broker.Publish("session.forked", summary)
+	return summary, nil
+}
+
+func (a *Agent) rollbackForkedSession(ctx context.Context, threadID string, numTurns int) (codex.Thread, error) {
+	var response codex.ThreadRollbackResponse
+	if err := a.client.Call(ctx, "thread/rollback", map[string]any{
+		"threadId": threadID,
+		"numTurns": numTurns,
+	}, &response); err != nil {
+		return codex.Thread{}, err
+	}
+	if strings.TrimSpace(response.Thread.ID) == "" {
+		return codex.Thread{}, errors.New("rollback response is missing thread id")
+	}
+	return response.Thread, nil
+}
+
+func turnsToDropAfter(turns []codex.Turn, endpointTurnID string) (int, error) {
+	for idx, turn := range turns {
+		if turn.ID == endpointTurnID {
+			return len(turns) - idx - 1, nil
+		}
+	}
+	return 0, fmt.Errorf("turn %s not found in forked thread", endpointTurnID)
+}
+
 func (a *Agent) EndSession(ctx context.Context, threadID string) error {
 	if isClaudeThreadID(threadID) {
 		return a.endClaudeSession(ctx, threadID)

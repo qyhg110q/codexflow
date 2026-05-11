@@ -123,6 +123,18 @@ class ApiClient {
     return SessionSummary.fromJson(json);
   }
 
+  Future<SessionSummary> forkSession({
+    required String id,
+    required String turnId,
+  }) async {
+    final json = await _decodeMap(
+      '/api/v1/sessions/$id/fork',
+      method: 'POST',
+      body: <String, dynamic>{'turnId': turnId},
+    );
+    return SessionSummary.fromJson(json);
+  }
+
   Future<void> endSession(String id) async {
     await _sendJson(
       '/api/v1/sessions/$id/end',

@@ -174,6 +174,25 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, session)
+	case "fork":
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w)
+			return
+		}
+		var request struct {
+			TurnID string `json:"turnId"`
+		}
+		if !decodeJSON(w, r, &request) {
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		session, err := s.agent.ForkSession(ctx, sessionID, request.TurnID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, session)
 	case "end":
 		if r.Method != http.MethodPost {
 			methodNotAllowed(w)
