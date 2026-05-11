@@ -309,6 +309,9 @@ class AppModel extends ChangeNotifier {
       if (itemId.isNotEmpty) {
         targetIndex = items.indexWhere((item) => item.id == itemId);
       }
+      if (targetIndex < 0 && incoming.type == 'agentMessage') {
+        targetIndex = _liveAgentMessageIndex(items, turnId);
+      }
       if (targetIndex < 0) {
         items.add(incoming);
       } else {
@@ -317,6 +320,7 @@ class AppModel extends ChangeNotifier {
             current.type == 'agentMessage' &&
             current.body.length > incoming.body.length) {
           items[targetIndex] = current.copyWith(
+            id: incoming.id.isEmpty ? current.id : incoming.id,
             status: incoming.status.isEmpty ? current.status : incoming.status,
           );
         } else {
@@ -330,6 +334,22 @@ class AppModel extends ChangeNotifier {
       notifyListeners();
     }
     return changed;
+  }
+
+  int _liveAgentMessageIndex(List<TurnItem> items, String turnId) {
+    final liveId = '$turnId-agent-live';
+    for (var idx = items.length - 1; idx >= 0; idx -= 1) {
+      final item = items[idx];
+      if (item.type != 'agentMessage') {
+        continue;
+      }
+      if (item.id.isEmpty ||
+          item.id == liveId ||
+          item.id.endsWith('-agent-live')) {
+        return idx;
+      }
+    }
+    return -1;
   }
 
   bool _updateTurnPlan(Map<String, dynamic> payload) {

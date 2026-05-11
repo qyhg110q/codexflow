@@ -321,6 +321,13 @@ func (s *Store) RecordTurnItem(threadID, turnID string, item map[string]any) {
 			return
 		}
 	}
+	if stringField(item, "type") == "agentMessage" {
+		if idx := liveAgentMessageIndex(turn.Items); idx >= 0 {
+			turn.Items[idx] = mergeAgentMessageItem(turn.Items[idx], item)
+			record.Runtime.CurrentTurnID = turnID
+			return
+		}
+	}
 
 	turn.Items = append(turn.Items, cloneMap(item))
 	record.Runtime.CurrentTurnID = turnID
@@ -759,11 +766,24 @@ func mergeTurnItems(existing, incoming []map[string]any) []map[string]any {
 	for _, item := range existing {
 		itemID := stringField(item, "id")
 		if itemID == "" {
+			if stringField(item, "type") == "agentMessage" {
+				if idx := agentMessageIndex(result); idx >= 0 {
+					result[idx] = mergeAgentMessageItem(result[idx], item)
+					continue
+				}
+			}
 			result = append(result, cloneMap(item))
 			continue
 		}
 		idx, ok := seen[itemID]
 		if !ok {
+			if stringField(item, "type") == "agentMessage" {
+				if liveIdx := liveAgentMessageIndex(result); liveIdx >= 0 {
+					result[liveIdx] = mergeAgentMessageItem(result[liveIdx], item)
+					seen[itemID] = liveIdx
+					continue
+				}
+			}
 			result = append(result, cloneMap(item))
 			seen[itemID] = len(result) - 1
 			continue
@@ -775,6 +795,39 @@ func mergeTurnItems(existing, incoming []map[string]any) []map[string]any {
 		}
 	}
 	return result
+}
+
+func mergeAgentMessageItem(existing, incoming map[string]any) map[string]any {
+	merged := mergeItem(existing, incoming)
+	if stringField(existing, "id") != "" && stringField(incoming, "id") == "" {
+		merged["id"] = stringField(existing, "id")
+	}
+	if len(stringField(existing, "text")) > len(stringField(incoming, "text")) {
+		merged["text"] = stringField(existing, "text")
+	}
+	return merged
+}
+
+func agentMessageIndex(items []map[string]any) int {
+	for idx := len(items) - 1; idx >= 0; idx-- {
+		if stringField(items[idx], "type") == "agentMessage" {
+			return idx
+		}
+	}
+	return -1
+}
+
+func liveAgentMessageIndex(items []map[string]any) int {
+	for idx := len(items) - 1; idx >= 0; idx-- {
+		if stringField(items[idx], "type") != "agentMessage" {
+			continue
+		}
+		itemID := stringField(items[idx], "id")
+		if itemID == "" || strings.HasSuffix(itemID, "-agent-live") {
+			return idx
+		}
+	}
+	return -1
 }
 
 func cloneItems(items []map[string]any) []map[string]any {
