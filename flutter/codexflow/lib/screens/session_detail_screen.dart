@@ -625,7 +625,7 @@ class _ContextUsageIndicator extends StatelessWidget {
         ? Palette.danger
         : usage.ratio >= 0.72
         ? Palette.warning
-        : const Color.fromRGBO(212, 216, 219, 1);
+        : Palette.softBlue;
 
     return Tooltip(
       message: '上下文使用约 ${usage.percentLabel} · ${usage.tokenLabel}',
@@ -636,8 +636,9 @@ class _ContextUsageIndicator extends StatelessWidget {
           height: 30,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Palette.ink,
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Palette.line),
           ),
           child: CustomPaint(
             size: const Size.square(18),
@@ -661,7 +662,7 @@ class _ContextUsagePainter extends CustomPainter {
     final radius = (math.min(size.width, size.height) - 4) / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
     final track = Paint()
-      ..color = const Color.fromRGBO(255, 255, 255, 0.22)
+      ..color = Palette.ink.appOpacity(0.10)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 3;
