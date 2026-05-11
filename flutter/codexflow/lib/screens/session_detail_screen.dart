@@ -634,22 +634,41 @@ class _ContextUsageIndicator extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Semantics(
+        button: true,
         label: tooltip,
-        child: Container(
-          width: 30,
-          height: 30,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.78),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showContextUsageSheet(context, summary),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Palette.line),
-          ),
-          child: CustomPaint(
-            size: const Size.square(18),
-            painter: _ContextUsagePainter(progress: usage.ratio, tone: tone),
+            child: Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Palette.line),
+              ),
+              child: CustomPaint(
+                size: const Size.square(18),
+                painter: _ContextUsagePainter(
+                  progress: usage.ratio,
+                  tone: tone,
+                ),
+              ),
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  void _showContextUsageSheet(BuildContext context, SessionSummary summary) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ContextUsageSheet(summary: summary),
     );
   }
 }
@@ -717,6 +736,215 @@ class _ContextUsage {
       tokenLabel: usage.tokenLabel,
     );
   }
+}
+
+class _ContextUsageSheet extends StatelessWidget {
+  const _ContextUsageSheet({required this.summary});
+
+  final SessionSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final usage = summary.contextWindowUsage;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+      decoration: const BoxDecoration(
+        color: Palette.canvas,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Palette.line,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: <Widget>[
+                Text(
+                  '上下文用量',
+                  style: roundedTextStyle(size: 18, weight: FontWeight.w700),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    '关闭',
+                    style: roundedTextStyle(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: Palette.softBlue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (usage.available)
+              _ContextUsageDetails(usage: usage)
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Palette.ink.appOpacity(0.045),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Palette.line),
+                ),
+                child: Text(
+                  '当前会话还没有真实 token_count 记录。完成一次 Codex turn 后会显示上下文用量和上限。',
+                  style: roundedTextStyle(
+                    size: 13,
+                    weight: FontWeight.w500,
+                    color: Palette.mutedInk,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContextUsageDetails extends StatelessWidget {
+  const _ContextUsageDetails({required this.usage});
+
+  final ContextWindowUsage usage;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = usage.ratio.clamp(0, 1).toDouble();
+    final tone = ratio >= 0.9
+        ? Palette.danger
+        : ratio >= 0.72
+        ? Palette.warning
+        : Palette.softBlue;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _ContextMetricTile(
+                label: '当前用量',
+                value: _formatTokenCount(usage.usedTokens),
+                tone: tone,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ContextMetricTile(
+                label: '上下文上限',
+                value: _formatTokenCount(usage.contextWindow),
+                tone: Palette.softBlue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 8,
+            color: Palette.ink.appOpacity(0.08),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: ratio,
+                child: Container(color: tone),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            CapsuleTag(title: '比例', value: usage.percentLabel),
+            CapsuleTag(
+              title: '剩余',
+              value: _formatTokenCount(usage.remainingTokens),
+            ),
+            CapsuleTag(
+              title: '累计',
+              value: _formatTokenCount(usage.totalTokenUsage.totalTokens),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ContextMetricTile extends StatelessWidget {
+  const _ContextMetricTile({
+    required this.label,
+    required this.value,
+    required this.tone,
+  });
+
+  final String label;
+  final String value;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Palette.ink.appOpacity(0.045),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Palette.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: roundedTextStyle(
+              size: 11,
+              weight: FontWeight.w700,
+              color: Palette.mutedInk,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: roundedTextStyle(
+              size: 20,
+              weight: FontWeight.w800,
+              color: tone,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatTokenCount(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).round()}K';
+  }
+  return value.toString();
 }
 
 class _JumpToLatestButton extends StatelessWidget {
