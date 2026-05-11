@@ -1164,6 +1164,7 @@ class _ChatComposer extends StatelessWidget {
       title: '默认模型',
       value: model.defaultModel,
       values: const <String, String>{
+        'GPT-5.3-Codex': 'GPT-5.3-Codex',
         'GPT-5.4': 'GPT-5.4',
         'GPT-5.5': 'GPT-5.5',
       },

@@ -267,6 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: '默认模型',
                       current: model.defaultModel,
                       values: const <String, String>{
+                        'GPT-5.3-Codex': 'GPT-5.3-Codex',
                         'GPT-5.4': 'GPT-5.4',
                         'GPT-5.5': 'GPT-5.5',
                       },
