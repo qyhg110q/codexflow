@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -307,10 +308,17 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Center(
-                child: StatusPill(
-                  status: summary.status,
-                  waiting: summary.hasWaitingState,
-                  ended: summary.isEnded,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _ContextUsageIndicator(detail: detail, summary: summary),
+                    const SizedBox(width: 8),
+                    StatusPill(
+                      status: summary.status,
+                      waiting: summary.hasWaitingState,
+                      ended: summary.isEnded,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -602,6 +610,164 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
     return '${String.fromCharCodes(values.take(safeHead))}...${String.fromCharCodes(values.skip(values.length - safeTail))}';
   }
+}
+
+class _ContextUsageIndicator extends StatelessWidget {
+  const _ContextUsageIndicator({required this.detail, required this.summary});
+
+  final SessionDetail? detail;
+  final SessionSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final usage = _ContextUsage.from(detail: detail, summary: summary);
+    final tone = usage.ratio >= 0.9
+        ? Palette.danger
+        : usage.ratio >= 0.72
+        ? Palette.warning
+        : const Color.fromRGBO(212, 216, 219, 1);
+
+    return Tooltip(
+      message: '上下文使用约 ${usage.percentLabel} · ${usage.tokenLabel}',
+      child: Semantics(
+        label: '上下文使用约 ${usage.percentLabel}',
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Palette.ink,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CustomPaint(
+            size: const Size.square(18),
+            painter: _ContextUsagePainter(progress: usage.ratio, tone: tone),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContextUsagePainter extends CustomPainter {
+  const _ContextUsagePainter({required this.progress, required this.tone});
+
+  final double progress;
+  final Color tone;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - 4) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final track = Paint()
+      ..color = const Color.fromRGBO(255, 255, 255, 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3;
+    final arc = Paint()
+      ..color = tone
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3;
+
+    canvas.drawCircle(center, radius, track);
+    final safeProgress = progress.clamp(0.02, 0.98);
+    canvas.drawArc(rect, -math.pi / 2, safeProgress * math.pi * 2, false, arc);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ContextUsagePainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.tone != tone;
+  }
+}
+
+class _ContextUsage {
+  const _ContextUsage({required this.tokens, required this.limit});
+
+  final int tokens;
+  final int limit;
+
+  double get ratio {
+    if (limit <= 0) {
+      return 0;
+    }
+    return (tokens / limit).clamp(0, 0.98);
+  }
+
+  String get percentLabel => '${(ratio * 100).round()}%';
+
+  String get tokenLabel =>
+      '${_compactNumber(tokens)} / ${_compactNumber(limit)}';
+
+  static _ContextUsage from({
+    required SessionDetail? detail,
+    required SessionSummary summary,
+  }) {
+    final turns = detail?.turns ?? const <TurnDetail>[];
+    var tokens = 0;
+    for (final turn in turns) {
+      tokens += _estimateTokens(turn.planExplanation);
+      tokens += _estimateTokens(turn.error);
+      for (final step in turn.plan) {
+        tokens += _estimateTokens(step.step);
+      }
+      for (final item in turn.items) {
+        tokens += _estimateTokens(item.title);
+        tokens += _estimateTokens(item.body);
+        tokens += _estimateTokens(item.auxiliary);
+      }
+    }
+
+    if (tokens == 0) {
+      tokens = _estimateTokens(summary.preview);
+    }
+
+    return _ContextUsage(
+      tokens: tokens,
+      limit: _contextLimitFor(summary.modelProvider),
+    );
+  }
+}
+
+int _contextLimitFor(String modelProvider) {
+  final provider = modelProvider.trim().toLowerCase();
+  if (provider.contains('anthropic') || provider.contains('claude')) {
+    return 200000;
+  }
+  return 200000;
+}
+
+int _estimateTokens(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return 0;
+  }
+
+  var cjkChars = 0;
+  var asciiChars = 0;
+  for (final rune in trimmed.runes) {
+    if ((rune >= 0x4E00 && rune <= 0x9FFF) ||
+        (rune >= 0x3400 && rune <= 0x4DBF) ||
+        (rune >= 0x3040 && rune <= 0x30FF) ||
+        (rune >= 0xAC00 && rune <= 0xD7AF)) {
+      cjkChars += 1;
+    } else if (String.fromCharCode(rune).trim().isNotEmpty) {
+      asciiChars += 1;
+    }
+  }
+  final estimate = (cjkChars * 1.15) + (asciiChars / 4.0);
+  return math.max(1, estimate.ceil());
+}
+
+String _compactNumber(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).round()}K';
+  }
+  return value.toString();
 }
 
 class _JumpToLatestButton extends StatelessWidget {
