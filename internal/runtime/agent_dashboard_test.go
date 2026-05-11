@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"testing"
 
 	"codexflow/internal/codex"
@@ -114,5 +115,35 @@ func TestSessionSummaryIncludesRuntimeAttachMode(t *testing.T) {
 	summary := toSessionSummary(record, 0)
 	if got := summary.RuntimeAttachMode; got != "resumed_existing" {
 		t.Fatalf("summary.RuntimeAttachMode = %q, want %q", got, "resumed_existing")
+	}
+}
+
+func TestHandleNotificationIgnoresUserMessageItemEvents(t *testing.T) {
+	sessionStore, err := store.New(nil)
+	if err != nil {
+		t.Fatalf("create session store: %v", err)
+	}
+
+	params, err := json.Marshal(codex.ItemStartedNotification{
+		ThreadID: "thread-1",
+		TurnID:   "turn-1",
+		Item: map[string]any{
+			"id":      "user-item",
+			"type":    "userMessage",
+			"content": []any{map[string]any{"type": "text", "text": "你是谁"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal notification: %v", err)
+	}
+
+	agent := &Agent{store: sessionStore}
+	agent.handleNotification(t.Context(), codex.Notification{
+		Method: "item/started",
+		Params: params,
+	})
+
+	if _, ok := sessionStore.SnapshotSession("thread-1"); ok {
+		t.Fatal("userMessage item notification should not create session state")
 	}
 }

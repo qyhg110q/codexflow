@@ -813,12 +813,18 @@ func (a *Agent) handleNotification(ctx context.Context, notification codex.Notif
 	case "item/started":
 		var payload codex.ItemStartedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
+			if isUserMessageItem(payload.Item) {
+				return
+			}
 			a.store.RecordTurnItem(payload.ThreadID, payload.TurnID, payload.Item)
 			a.broker.Publish("turn.item.started", payload)
 		}
 	case "item/completed":
 		var payload codex.ItemCompletedNotification
 		if json.Unmarshal(notification.Params, &payload) == nil {
+			if isUserMessageItem(payload.Item) {
+				return
+			}
 			a.store.RecordTurnItem(payload.ThreadID, payload.TurnID, payload.Item)
 			a.broker.Publish("turn.item.completed", payload)
 		}
@@ -888,6 +894,11 @@ func toSessionStartedPayload(thread codex.Thread) map[string]string {
 		"id":       thread.ID,
 		"status":   thread.Status.Type,
 	}
+}
+
+func isUserMessageItem(item map[string]any) bool {
+	itemType, _ := item["type"].(string)
+	return strings.TrimSpace(itemType) == "userMessage"
 }
 
 func (a *Agent) handleServerRequest(ctx context.Context, request codex.ServerRequest) {
