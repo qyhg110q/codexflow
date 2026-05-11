@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -1085,46 +1085,144 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = role == _BubbleRole.user;
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.84,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: isUser ? Palette.ink : Colors.white.appOpacity(0.82),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(20),
-              topRight: const Radius.circular(20),
-              bottomLeft: Radius.circular(isUser ? 20 : 7),
-              bottomRight: Radius.circular(isUser ? 7 : 20),
-            ),
-            border: Border.all(
-              color: isUser ? Colors.transparent : Palette.line,
-            ),
-            boxShadow: isUser
-                ? null
-                : const <BoxShadow>[
-                    BoxShadow(
-                      color: Color.fromRGBO(31, 36, 41, 0.07),
-                      blurRadius: 20,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.84,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isUser ? Palette.ink : Colors.white.appOpacity(0.82),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isUser ? 20 : 7),
+            bottomRight: Radius.circular(isUser ? 7 : 20),
           ),
-          child: isUser
-              ? Text(
-                  text,
-                  style: roundedTextStyle(
-                    size: 14,
-                    weight: FontWeight.w500,
-                    color: Colors.white,
-                    height: 1.55,
+          border: Border.all(color: isUser ? Colors.transparent : Palette.line),
+          boxShadow: isUser
+              ? null
+              : const <BoxShadow>[
+                  BoxShadow(
+                    color: Color.fromRGBO(31, 36, 41, 0.07),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
                   ),
-                )
-              : MarkdownBodyBlock(raw: text),
+                ],
+        ),
+        child: isUser
+            ? Text(
+                text,
+                style: roundedTextStyle(
+                  size: 14,
+                  weight: FontWeight.w500,
+                  color: Colors.white,
+                  height: 1.55,
+                ),
+              )
+            : MarkdownBodyBlock(raw: text),
+      ),
+    );
+
+    if (isUser) {
+      return Align(alignment: Alignment.centerRight, child: bubble);
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          bubble,
+          const SizedBox(height: 4),
+          _AgentMessageActions(
+            onCopy: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (!context.mounted) {
+                return;
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '已复制回复',
+                    style: roundedTextStyle(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(milliseconds: 1300),
+                  backgroundColor: Palette.ink,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentMessageActions extends StatelessWidget {
+  const _AgentMessageActions({required this.onCopy});
+
+  final Future<void> Function() onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _AgentMessageActionButton(
+            icon: Icons.content_copy_rounded,
+            tooltip: '复制回复',
+            onPressed: () => unawaited(onCopy()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentMessageActionButton extends StatelessWidget {
+  const _AgentMessageActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 34,
+              height: 34,
+              child: Icon(
+                icon,
+                size: 19,
+                color: Palette.mutedInk.appOpacity(0.74),
+              ),
+            ),
+          ),
         ),
       ),
     );
