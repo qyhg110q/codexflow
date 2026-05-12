@@ -16,13 +16,37 @@ import (
 )
 
 type Server struct {
-	agent   *runtime.Agent
+	agent   agentBackend
 	logger  *slog.Logger
 	mux     *http.ServeMux
 	uploads *imageUploadStore
 }
 
+type agentBackend interface {
+	Dashboard() runtime.Dashboard
+	ListSessions() []runtime.SessionSummary
+	Refresh(context.Context) error
+	StartSession(context.Context, string, string, string) (runtime.SessionSummary, error)
+	ForkSession(context.Context, string, string) (runtime.SessionSummary, error)
+	SessionDetail(context.Context, string) (runtime.SessionDetail, error)
+	ContextWindowUsage(string) (runtime.ContextWindowUsage, error)
+	ResumeSession(context.Context, string) (runtime.SessionSummary, error)
+	EndSession(context.Context, string) error
+	ArchiveSession(context.Context, string) error
+	StartTurn(context.Context, string, []map[string]any) (runtime.TurnDetail, error)
+	SteerTurn(context.Context, string, string, []map[string]any) error
+	InterruptTurn(context.Context, string, string) error
+	PendingRequests() []runtime.PendingRequestView
+	ResolveRequest(context.Context, string, json.RawMessage) error
+	Subscribe() chan runtime.Event
+	Unsubscribe(chan runtime.Event)
+}
+
 func NewServer(agent *runtime.Agent, logger *slog.Logger) *Server {
+	return newServer(agent, logger)
+}
+
+func newServer(agent agentBackend, logger *slog.Logger) *Server {
 	server := &Server{
 		agent:   agent,
 		logger:  logger,
@@ -71,10 +95,13 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		})
 	case http.MethodPost:
 		var request struct {
-			Action string `json:"action"`
-			CWD    string `json:"cwd"`
-			Prompt string `json:"prompt"`
-			Agent  string `json:"agent"`
+			Action    string `json:"action"`
+			CWD       string `json:"cwd"`
+			Prompt    string `json:"prompt"`
+			Agent     string `json:"agent"`
+			SessionID string `json:"sessionId"`
+			ID        string `json:"id"`
+			TurnID    string `json:"turnId"`
 		}
 		if !decodeJSON(w, r, &request) {
 			return
@@ -112,8 +139,23 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, http.StatusCreated, session)
+		case "fork", "branch":
+			sessionID := strings.TrimSpace(request.SessionID)
+			if sessionID == "" {
+				sessionID = strings.TrimSpace(request.ID)
+			}
+			if sessionID == "" {
+				writeErrorMessage(w, http.StatusBadRequest, "session id is required")
+				return
+			}
+			session, err := s.agent.ForkSession(ctx, sessionID, request.TurnID)
+			if err != nil {
+				writeError(w, http.StatusBadGateway, err)
+				return
+			}
+			writeJSON(w, http.StatusCreated, session)
 		default:
-			writeErrorMessage(w, http.StatusBadRequest, "unsupported sessions action")
+			writeErrorMessage(w, http.StatusBadRequest, fmt.Sprintf("unsupported sessions action %q", request.Action))
 		}
 	default:
 		methodNotAllowed(w)
