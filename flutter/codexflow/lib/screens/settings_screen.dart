@@ -13,30 +13,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late final TextEditingController _controller;
-  bool _didBindController = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_didBindController) {
-      _controller.text = context.read<AppModel>().baseUrlString;
-      _didBindController = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
@@ -72,18 +48,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    'Agent 地址',
-                    style: roundedTextStyle(size: 16, weight: FontWeight.w600),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'Agent 地址',
+                          style: roundedTextStyle(
+                            size: 16,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Tooltip(
+                        message: '添加 Agent',
+                        child: IconButton.filledTonal(
+                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Palette.softBlue.appOpacity(0.12),
+                            foregroundColor: Palette.softBlue,
+                          ),
+                          icon: const Icon(Icons.add_rounded),
+                          onPressed: () => _showAgentEndpointEditor(),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  CodexTextField(
-                    controller: _controller,
-                    hintText: 'http://192.168.1.4:4318',
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
-                    'Android 真机建议填写电脑的局域网地址。模拟器、Web 和桌面端按各自网络映射处理。',
+                    '点击切换 Agent，长按可修改或删除。切换后会立即连接，离线时每 10 秒重试。',
                     style: roundedTextStyle(
                       size: 13,
                       weight: FontWeight.w500,
@@ -92,43 +84,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: ActionButton(
-                          title: '保存并刷新',
-                          background: Palette.accent,
-                          foreground: Colors.white,
-                          fontSize: 14,
-                          onPressed: () async {
-                            FocusScope.of(context).unfocus();
-                            model.updateBaseUrlString(_controller.text);
-                            await model.saveBaseUrl();
-                            await model.refreshDashboard();
-                          },
-                        ),
+                  ...model.agentEndpoints.map(
+                    (endpoint) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _AgentEndpointTile(
+                        endpoint: endpoint,
+                        selected: model.isSelectedAgentEndpoint(endpoint.id),
+                        connected:
+                            model.isSelectedAgentEndpoint(endpoint.id) &&
+                            model.isAgentOnline,
+                        onTap: () => model.selectAgentEndpoint(endpoint.id),
+                        onLongPress: () => _showAgentEndpointActions(endpoint),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ActionButton(
-                          title: '重新连接',
-                          background: Palette.softBlue.appOpacity(0.14),
-                          foreground: Palette.softBlue,
-                          fontSize: 14,
-                          onPressed: () async {
-                            FocusScope.of(context).unfocus();
-                            model.updateBaseUrlString(_controller.text);
-                            await model.refreshDashboard();
-                          },
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   if (model.dashboard.agent.connected &&
                       model.dashboard.agent.listenAddr.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
                     Text(
-                      'Agent 当前监听：${model.dashboard.agent.listenAddr}',
+                      '当前监听：${model.dashboard.agent.listenAddr}',
                       style: roundedTextStyle(
                         size: 12,
                         weight: FontWeight.w500,
@@ -189,7 +163,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _SettingsInfoRow(title: '入口地址', value: _controller.text),
+                  _SettingsInfoRow(
+                    title: 'Agent',
+                    value: model.selectedAgentEndpoint.name,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsInfoRow(title: '入口地址', value: model.baseUrlString),
                   const SizedBox(height: 8),
                   _SettingsInfoRow(
                     title: '监听地址',
@@ -364,6 +343,198 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _showAgentEndpointActions(AgentEndpoint endpoint) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+          decoration: const BoxDecoration(
+            color: Palette.canvas,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Palette.line,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(
+                    Icons.edit_rounded,
+                    color: Palette.softBlue,
+                  ),
+                  title: Text(
+                    '修改',
+                    style: roundedTextStyle(size: 15, weight: FontWeight.w700),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _showAgentEndpointEditor(endpoint: endpoint);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Palette.danger,
+                  ),
+                  title: Text(
+                    '删除',
+                    style: roundedTextStyle(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: Palette.danger,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await context.read<AppModel>().deleteAgentEndpoint(
+                      endpoint.id,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showAgentEndpointEditor({AgentEndpoint? endpoint}) async {
+    final nameController = TextEditingController(text: endpoint?.name ?? '');
+    final urlController = TextEditingController(text: endpoint?.url ?? '');
+    try {
+      final result = await showDialog<_AgentEndpointFormResult>(
+        context: context,
+        builder: (dialogContext) {
+          String? errorText;
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: Palette.canvas,
+                surfaceTintColor: Colors.transparent,
+                title: Text(
+                  endpoint == null ? '添加 Agent' : '修改 Agent',
+                  style: roundedTextStyle(size: 17, weight: FontWeight.w700),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    CodexTextField(
+                      controller: nameController,
+                      hintText: 'Agent 名称',
+                    ),
+                    const SizedBox(height: 10),
+                    CodexTextField(
+                      controller: urlController,
+                      hintText: 'http://192.168.1.4:4318',
+                      monospaced: true,
+                    ),
+                    if (errorText != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          errorText!,
+                          style: roundedTextStyle(
+                            size: 12,
+                            weight: FontWeight.w600,
+                            color: Palette.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(
+                      '取消',
+                      style: roundedTextStyle(
+                        size: 14,
+                        weight: FontWeight.w700,
+                        color: Palette.mutedInk,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      final name = nameController.text.trim();
+                      final url = _normalizedEndpointUrl(urlController.text);
+                      if (name.isEmpty) {
+                        setDialogState(() => errorText = '请输入 Agent 名称。');
+                        return;
+                      }
+                      if (!_isValidEndpointUrl(url)) {
+                        setDialogState(() => errorText = '请输入有效的 HTTP 地址。');
+                        return;
+                      }
+                      Navigator.of(
+                        dialogContext,
+                      ).pop(_AgentEndpointFormResult(name: name, url: url));
+                    },
+                    child: Text(
+                      endpoint == null ? '添加' : '保存',
+                      style: roundedTextStyle(
+                        size: 14,
+                        weight: FontWeight.w700,
+                        color: Palette.softBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (!mounted || result == null) {
+        return;
+      }
+      final model = context.read<AppModel>();
+      if (endpoint == null) {
+        await model.addAgentEndpoint(name: result.name, url: result.url);
+      } else {
+        await model.updateAgentEndpoint(
+          id: endpoint.id,
+          name: result.name,
+          url: result.url,
+        );
+      }
+    } finally {
+      nameController.dispose();
+      urlController.dispose();
+    }
+  }
+
+  String _normalizedEndpointUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(trimmed);
+    return hasScheme ? trimmed : 'http://$trimmed';
+  }
+
+  bool _isValidEndpointUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+  }
+
   Future<void> _showValuePicker({
     required String title,
     required String current,
@@ -456,6 +627,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
       default:
         return '标准';
     }
+  }
+}
+
+class _AgentEndpointFormResult {
+  const _AgentEndpointFormResult({required this.name, required this.url});
+
+  final String name;
+  final String url;
+}
+
+class _AgentEndpointTile extends StatelessWidget {
+  const _AgentEndpointTile({
+    required this.endpoint,
+    required this.selected,
+    required this.connected,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final AgentEndpoint endpoint;
+  final bool selected;
+  final bool connected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = connected ? Palette.accent : Palette.danger;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected
+                ? Palette.softBlue.appOpacity(0.10)
+                : Palette.surfaceStrong,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? Palette.softBlue.appOpacity(0.32)
+                  : Palette.line,
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Palette.softBlue.appOpacity(0.13)
+                      : Palette.ink.appOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.dns_rounded,
+                  size: 20,
+                  color: selected ? Palette.softBlue : Palette.mutedInk,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      endpoint.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: roundedTextStyle(
+                        size: 14,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      endpoint.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: roundedTextStyle(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: Palette.mutedInk,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (selected)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tone.appOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: tone,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        connected ? '已连接' : '重试中',
+                        style: roundedTextStyle(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: tone,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Palette.faintInk,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +8,34 @@ import '../models/app_models.dart';
 import '../services/api_client.dart';
 
 enum ApprovalActionType { choice, decision, submitText }
+
+class AgentEndpoint {
+  const AgentEndpoint({
+    required this.id,
+    required this.name,
+    required this.url,
+  });
+
+  final String id;
+  final String name;
+  final String url;
+
+  AgentEndpoint copyWith({String? name, String? url}) {
+    return AgentEndpoint(id: id, name: name ?? this.name, url: url ?? this.url);
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'id': id, 'name': name, 'url': url};
+  }
+
+  factory AgentEndpoint.fromJson(Map<String, dynamic> json) {
+    return AgentEndpoint(
+      id: asString(json['id']),
+      name: asString(json['name']),
+      url: asString(json['url']),
+    );
+  }
+}
 
 class ApprovalAction {
   ApprovalAction.choice(this.value) : type = ApprovalActionType.choice;
@@ -36,7 +65,9 @@ class ApprovalAction {
 
 class AppModel extends ChangeNotifier {
   AppModel(this._prefs)
-    : baseUrlString = _prefs.getString(_baseUrlKey) ?? 'http://127.0.0.1:4318',
+    : agentEndpoints = _loadAgentEndpoints(_prefs),
+      selectedAgentEndpointId = _loadSelectedAgentEndpointId(_prefs),
+      baseUrlString = _loadBaseUrl(_prefs),
       defaultExecutionPolicy =
           _prefs.getString(_defaultExecutionPolicyKey) ?? 'review',
       defaultModel = _prefs.getString(_defaultModelKey) ?? 'GPT-5.4',
@@ -45,6 +76,10 @@ class AppModel extends ChangeNotifier {
       localMode = _prefs.getBool(_localModeKey) ?? true;
 
   static const _baseUrlKey = 'codexflow.baseURL';
+  static const _agentEndpointsKey = 'codexflow.agentEndpoints';
+  static const _selectedAgentEndpointKey = 'codexflow.selectedAgentEndpoint';
+  static const _defaultAgentEndpointId = 'local-agent';
+  static const _defaultAgentEndpointUrl = 'http://127.0.0.1:4318';
   static const _defaultExecutionPolicyKey = 'codexflow.defaultPolicy';
   static const _defaultModelKey = 'codexflow.defaultModel';
   static const _defaultReasoningKey = 'codexflow.defaultReasoning';
@@ -53,6 +88,8 @@ class AppModel extends ChangeNotifier {
 
   final SharedPreferences _prefs;
 
+  List<AgentEndpoint> agentEndpoints;
+  String selectedAgentEndpointId;
   String baseUrlString;
   String defaultExecutionPolicy;
   String defaultModel;
@@ -75,6 +112,92 @@ class AppModel extends ChangeNotifier {
 
   ApiClient _client() => ApiClient(baseUrlString: baseUrlString);
 
+  static List<AgentEndpoint> _loadAgentEndpoints(SharedPreferences prefs) {
+    final encoded = prefs.getString(_agentEndpointsKey);
+    if (encoded != null && encoded.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(encoded);
+        final parsed = asList(decoded)
+            .map((item) => AgentEndpoint.fromJson(asMap(item)))
+            .where((item) => item.id.isNotEmpty && item.url.isNotEmpty)
+            .toList();
+        if (parsed.isNotEmpty) {
+          return _dedupeAgentEndpoints(parsed);
+        }
+      } catch (_) {}
+    }
+
+    final legacyUrl = prefs.getString(_baseUrlKey) ?? _defaultAgentEndpointUrl;
+    return <AgentEndpoint>[
+      AgentEndpoint(
+        id: _defaultAgentEndpointId,
+        name: '本机 Agent',
+        url: _normalizeAgentEndpointUrl(legacyUrl),
+      ),
+    ];
+  }
+
+  static List<AgentEndpoint> _dedupeAgentEndpoints(
+    List<AgentEndpoint> endpoints,
+  ) {
+    final seen = <String>{};
+    final deduped = <AgentEndpoint>[];
+    for (final endpoint in endpoints) {
+      final id = endpoint.id.trim();
+      final name = endpoint.name.trim();
+      final url = _normalizeAgentEndpointUrl(endpoint.url);
+      if (id.isEmpty || url.isEmpty || seen.contains(id)) {
+        continue;
+      }
+      seen.add(id);
+      deduped.add(
+        AgentEndpoint(
+          id: id,
+          name: name.isEmpty ? 'Agent ${deduped.length + 1}' : name,
+          url: url,
+        ),
+      );
+    }
+    return deduped.isEmpty
+        ? const <AgentEndpoint>[
+            AgentEndpoint(
+              id: _defaultAgentEndpointId,
+              name: '本机 Agent',
+              url: _defaultAgentEndpointUrl,
+            ),
+          ]
+        : deduped;
+  }
+
+  static String _loadSelectedAgentEndpointId(SharedPreferences prefs) {
+    final endpoints = _loadAgentEndpoints(prefs);
+    final selected = prefs.getString(_selectedAgentEndpointKey) ?? '';
+    if (endpoints.any((item) => item.id == selected)) {
+      return selected;
+    }
+    return endpoints.first.id;
+  }
+
+  static String _loadBaseUrl(SharedPreferences prefs) {
+    final endpoints = _loadAgentEndpoints(prefs);
+    final selectedId = _loadSelectedAgentEndpointId(prefs);
+    for (final endpoint in endpoints) {
+      if (endpoint.id == selectedId) {
+        return endpoint.url;
+      }
+    }
+    return endpoints.first.url;
+  }
+
+  static String _normalizeAgentEndpointUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(trimmed);
+    return hasScheme ? trimmed : 'http://$trimmed';
+  }
+
   Future<void> bootstrap() async {
     if (isBootstrapped) {
       return;
@@ -91,6 +214,137 @@ class AppModel extends ChangeNotifier {
 
   Future<void> saveBaseUrl() async {
     await _prefs.setString(_baseUrlKey, baseUrlString);
+  }
+
+  AgentEndpoint get selectedAgentEndpoint {
+    for (final endpoint in agentEndpoints) {
+      if (endpoint.id == selectedAgentEndpointId) {
+        return endpoint;
+      }
+    }
+    return agentEndpoints.first;
+  }
+
+  bool isSelectedAgentEndpoint(String id) {
+    return selectedAgentEndpointId == id;
+  }
+
+  Future<void> addAgentEndpoint({
+    required String name,
+    required String url,
+  }) async {
+    final endpoint = AgentEndpoint(
+      id: _newAgentEndpointId(),
+      name: _normalizedAgentEndpointName(name),
+      url: _normalizeAgentEndpointUrl(url),
+    );
+    agentEndpoints = <AgentEndpoint>[...agentEndpoints, endpoint];
+    await _selectAgentEndpoint(endpoint.id, refresh: true);
+  }
+
+  Future<void> updateAgentEndpoint({
+    required String id,
+    required String name,
+    required String url,
+  }) async {
+    final normalizedUrl = _normalizeAgentEndpointUrl(url);
+    final updated = agentEndpoints
+        .map(
+          (endpoint) => endpoint.id == id
+              ? endpoint.copyWith(
+                  name: _normalizedAgentEndpointName(name),
+                  url: normalizedUrl,
+                )
+              : endpoint,
+        )
+        .toList();
+    agentEndpoints = _dedupeAgentEndpoints(updated);
+    await _saveAgentEndpoints();
+    if (selectedAgentEndpointId == id) {
+      baseUrlString = normalizedUrl;
+      await saveBaseUrl();
+      notifyListeners();
+      await refreshDashboard();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteAgentEndpoint(String id) async {
+    if (agentEndpoints.length <= 1) {
+      agentEndpoints = const <AgentEndpoint>[
+        AgentEndpoint(
+          id: _defaultAgentEndpointId,
+          name: '本机 Agent',
+          url: _defaultAgentEndpointUrl,
+        ),
+      ];
+      await _selectAgentEndpoint(_defaultAgentEndpointId, refresh: true);
+      return;
+    }
+
+    final remaining = agentEndpoints
+        .where((endpoint) => endpoint.id != id)
+        .toList();
+    if (remaining.length == agentEndpoints.length) {
+      return;
+    }
+    agentEndpoints = remaining;
+
+    if (selectedAgentEndpointId == id) {
+      await _selectAgentEndpoint(remaining.first.id, refresh: true);
+      return;
+    }
+
+    await _saveAgentEndpoints();
+    notifyListeners();
+  }
+
+  Future<void> selectAgentEndpoint(String id) async {
+    await _selectAgentEndpoint(id, refresh: true);
+  }
+
+  Future<void> _selectAgentEndpoint(String id, {required bool refresh}) async {
+    AgentEndpoint? endpoint;
+    for (final candidate in agentEndpoints) {
+      if (candidate.id == id) {
+        endpoint = candidate;
+        break;
+      }
+    }
+    if (endpoint == null) {
+      return;
+    }
+
+    selectedAgentEndpointId = endpoint.id;
+    baseUrlString = endpoint.url;
+    agentConnectionError = '';
+    connectionError = '';
+    _consecutiveDashboardFailures = 0;
+    await _saveAgentEndpoints();
+    await _prefs.setString(_selectedAgentEndpointKey, selectedAgentEndpointId);
+    await saveBaseUrl();
+    notifyListeners();
+
+    if (refresh) {
+      await refreshDashboard();
+    }
+  }
+
+  Future<void> _saveAgentEndpoints() async {
+    await _prefs.setString(
+      _agentEndpointsKey,
+      jsonEncode(agentEndpoints.map((endpoint) => endpoint.toJson()).toList()),
+    );
+  }
+
+  String _newAgentEndpointId() {
+    return 'agent-${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  String _normalizedAgentEndpointName(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? 'Agent ${agentEndpoints.length + 1}' : trimmed;
   }
 
   Future<void> updateDefaultExecutionPolicy(String value) async {

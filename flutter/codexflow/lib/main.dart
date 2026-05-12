@@ -97,7 +97,7 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _timer = Timer.periodic(const Duration(seconds: 8), (_) {
+      _timer = Timer.periodic(const Duration(seconds: 10), (_) {
         if (!mounted) {
           return;
         }
