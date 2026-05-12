@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../navigation/app_navigation.dart';
 import '../state/app_model.dart';
@@ -14,6 +15,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
+    final l10n = AppLocalizations.of(model.languageCode);
     final selectedAgentId = model.selectedStartAgentId;
     final filteredSessions = model.dashboard.sessions
         .where((session) => session.agentId == selectedAgentId)
@@ -134,7 +136,7 @@ class DashboardScreen extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       Text(
-                        '最近会话',
+                        l10n.t('dashboard.recentSessions'),
                         style: roundedTextStyle(
                           size: 16,
                           weight: FontWeight.w600,
@@ -153,17 +155,20 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   if (pendingApprovalCount > 0) ...<Widget>[
                     const Spacer(),
-                    CapsuleTag(title: '审批', value: '$pendingApprovalCount'),
+                    CapsuleTag(
+                      title: l10n.t('nav.approvals'),
+                      value: '$pendingApprovalCount',
+                    ),
                   ],
                 ],
               ),
               const SizedBox(height: 10),
               if (filteredSessions.isEmpty)
-                const PanelCard(
+                PanelCard(
                   compact: true,
                   child: Text(
-                    '暂时没有会话。确认 Agent 连接后，可以直接在上方输入第一条要求。',
-                    style: TextStyle(
+                    l10n.t('dashboard.noSessions'),
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: Palette.mutedInk,
@@ -173,25 +178,29 @@ class DashboardScreen extends StatelessWidget {
               else ...<Widget>[
                 if (managedSessions.isNotEmpty)
                   _SessionGroup(
-                    title: '已接管',
+                    title: l10n.t('dashboard.managed'),
                     helper: '',
                     sessions: managedSessions,
                   ),
                 if (endedSessions.isNotEmpty)
                   _SessionGroup(
-                    title: '已结束',
+                    title: l10n.t('dashboard.ended'),
                     helper: '',
                     sessions: endedSessions,
                   ),
                 if (runtimeSessions.isNotEmpty)
                   _SessionGroup(
-                    title: selectedAgentId == 'claude' ? '可接管 Runtime' : '待接管',
+                    title: selectedAgentId == 'claude'
+                        ? l10n.t('dashboard.runtimeAvailable')
+                        : l10n.t('dashboard.pendingTakeover'),
                     helper: '',
                     sessions: runtimeSessions,
                   ),
                 if (historySessions.isNotEmpty)
                   _SessionGroup(
-                    title: selectedAgentId == 'claude' ? '历史导入' : '历史会话',
+                    title: selectedAgentId == 'claude'
+                        ? l10n.t('dashboard.historyImport')
+                        : l10n.t('dashboard.historySession'),
                     helper: '',
                     sessions: historySessions,
                   ),
@@ -221,6 +230,7 @@ class _DashboardHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context.watch<AppModel>().languageCode);
     final listenAddr = model.dashboard.agent.listenAddr.isEmpty
         ? model.baseUrlString.replaceFirst(RegExp(r'^https?://'), '')
         : model.dashboard.agent.listenAddr;
@@ -235,7 +245,10 @@ class _DashboardHero extends StatelessWidget {
                 connecting: model.isAgentConnecting,
               ),
               const SizedBox(width: 8),
-              CapsuleTag(title: '端口', value: _portLabel(listenAddr)),
+              CapsuleTag(
+                title: l10n.t('dashboard.port'),
+                value: _portLabel(listenAddr),
+              ),
               const Spacer(),
               Text(
                 _todayLabel(),
@@ -249,12 +262,19 @@ class _DashboardHero extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            '创建或接管一个会话',
+            l10n.t('dashboard.heroTitle'),
             style: roundedTextStyle(size: 25, weight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
-            '当前入口：${_agentName(model)}，${model.localMode ? '本地模式' : '远程模式'}，默认 ${model.defaultModel} / ${_reasoningLabel(model.defaultReasoning)}。',
+            l10n.t('dashboard.heroSubtitle', {
+              'agent': _agentName(model),
+              'mode': model.localMode
+                  ? l10n.t('dashboard.localMode')
+                  : l10n.t('dashboard.remoteMode'),
+              'model': model.defaultModel,
+              'reasoning': _reasoningLabel(model.defaultReasoning, l10n),
+            }),
             style: roundedTextStyle(
               size: 13,
               weight: FontWeight.w500,
@@ -267,7 +287,7 @@ class _DashboardHero extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: _InlineMetric(
-                  label: '总会话',
+                  label: l10n.t('dashboard.totalSessions'),
                   value: '$totalCount',
                   tone: Palette.softBlue,
                 ),
@@ -275,7 +295,7 @@ class _DashboardHero extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _InlineMetric(
-                  label: '已接管',
+                  label: l10n.t('dashboard.managed'),
                   value: '$loadedCount',
                   tone: Palette.accent,
                 ),
@@ -283,7 +303,7 @@ class _DashboardHero extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _InlineMetric(
-                  label: '运行',
+                  label: l10n.t('dashboard.running'),
                   value: '$activeCount',
                   tone: Palette.warning,
                 ),
@@ -291,7 +311,7 @@ class _DashboardHero extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _InlineMetric(
-                  label: '审批',
+                  label: l10n.t('nav.approvals'),
                   value: '$pendingApprovalCount',
                   tone: pendingApprovalCount > 0
                       ? Palette.warning
@@ -323,16 +343,16 @@ class _DashboardHero extends StatelessWidget {
     return '${now.month}/${now.day}';
   }
 
-  String _reasoningLabel(String value) {
+  String _reasoningLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'low':
-        return '低推理';
+        return l10n.t('reasoning.lowFull');
       case 'high':
-        return '高推理';
+        return l10n.t('reasoning.highFull');
       case 'xhigh':
-        return '超高推理';
+        return l10n.t('reasoning.xhighFull');
       default:
-        return '中推理';
+        return l10n.t('reasoning.mediumFull');
     }
   }
 }
@@ -474,6 +494,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   @override
   Widget build(BuildContext context) {
     final model = widget.model;
+    final l10n = AppLocalizations.of(model.languageCode);
     return ListenableBuilder(
       listenable: Listenable.merge(<Listenable>[
         _cwdController,
@@ -489,7 +510,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
             children: <Widget>[
               CodexTextField(
                 controller: _promptController,
-                hintText: '可向 Codex 询问任何事。输入第一条要求创建会话。',
+                hintText: l10n.t('dashboard.promptHint'),
                 minLines: 3,
                 maxLines: 6,
                 autocapitalization: TextCapitalization.sentences,
@@ -497,7 +518,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
               const SizedBox(height: 10),
               CodexTextField(
                 controller: _cwdController,
-                hintText: '工作目录，例如 D:\\repo\\project',
+                hintText: l10n.t('dashboard.cwdHint'),
                 monospaced: true,
               ),
               const SizedBox(height: 10),
@@ -515,20 +536,20 @@ class _DashboardComposerState extends State<_DashboardComposer> {
                     onPressed: () => _showAgentPicker(context, model),
                   ),
                   OptionChipButton(
-                    label: '策略',
-                    value: _policyLabel(model.defaultExecutionPolicy),
+                    label: l10n.t('common.strategy'),
+                    value: _policyLabel(model.defaultExecutionPolicy, l10n),
                     icon: Icons.verified_user_rounded,
                     onPressed: () => _showPolicyPicker(context, model),
                   ),
                   OptionChipButton(
-                    label: '模型',
+                    label: l10n.t('common.model'),
                     value: model.defaultModel,
                     icon: Icons.auto_awesome_rounded,
                     onPressed: () => _showModelPicker(context, model),
                   ),
                   OptionChipButton(
-                    label: '推理',
-                    value: _reasoningLabel(model.defaultReasoning),
+                    label: l10n.t('common.reasoning'),
+                    value: _reasoningLabel(model.defaultReasoning, l10n),
                     onPressed: () => _showReasoningPicker(context, model),
                   ),
                 ],
@@ -548,7 +569,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
               Row(
                 children: <Widget>[
                   IconButton.filledTonal(
-                    tooltip: '切换本地模式',
+                    tooltip: l10n.t('dashboard.switchLocalMode'),
                     style: IconButton.styleFrom(
                       backgroundColor: model.localMode
                           ? Palette.accent.appOpacity(0.12)
@@ -581,6 +602,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
 
   Future<void> _createSession(BuildContext context) async {
     final model = context.read<AppModel>();
+    final l10n = AppLocalizations.of(model.languageCode);
     final cwd = _cwdController.text.trim();
     final prompt = _promptController.text.trim();
     if (cwd.isEmpty || prompt.isEmpty || _isCreating) {
@@ -604,7 +626,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       if (createdSession == null) {
         _submitError = model.connectionError.isNotEmpty
             ? model.connectionError
-            : '创建会话失败，请检查 Agent 状态和输入内容。';
+            : l10n.t('dashboard.createFailed');
       }
     });
     if (createdSession != null) {
@@ -624,16 +646,19 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   }
 
   Future<void> _showAgentPicker(BuildContext context, AppModel model) async {
+    final l10n = AppLocalizations.of(model.languageCode);
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _OptionSheet(
-        title: '选择 Agent',
+        title: l10n.t('dashboard.selectAgent'),
         children: model.startAgentOptions
             .map(
               (agent) => _OptionSheetTile(
                 title: agent.name,
-                subtitle: agent.available ? agent.id : '当前不可用',
+                subtitle: agent.available
+                    ? agent.id
+                    : l10n.t('dashboard.unavailable'),
                 selected: agent.id == model.selectedStartAgentId,
                 enabled: agent.available,
                 onTap: () {
@@ -648,23 +673,25 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   }
 
   Future<void> _showPolicyPicker(BuildContext context, AppModel model) async {
+    final l10n = AppLocalizations.of(model.languageCode);
     await _showValuePicker(
       context: context,
-      title: '默认执行策略',
+      title: l10n.t('settings.defaultPolicy'),
       value: model.defaultExecutionPolicy,
-      values: const <String, String>{
-        'review': '自动审查',
-        'ask': '每次确认',
-        'full': '完全使用权限',
+      values: <String, String>{
+        'review': l10n.t('policy.review'),
+        'ask': l10n.t('policy.ask'),
+        'full': l10n.t('policy.full'),
       },
       onSelected: model.updateDefaultExecutionPolicy,
     );
   }
 
   Future<void> _showModelPicker(BuildContext context, AppModel model) async {
+    final l10n = AppLocalizations.of(model.languageCode);
     await _showValuePicker(
       context: context,
-      title: '默认模型',
+      title: l10n.t('settings.defaultModel'),
       value: model.defaultModel,
       values: const <String, String>{
         'GPT-5.3-Codex': 'GPT-5.3-Codex',
@@ -679,15 +706,16 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     BuildContext context,
     AppModel model,
   ) async {
+    final l10n = AppLocalizations.of(model.languageCode);
     await _showValuePicker(
       context: context,
-      title: '推理深度',
+      title: l10n.t('settings.reasoningDepth'),
       value: model.defaultReasoning,
-      values: const <String, String>{
-        'low': '低',
-        'medium': '中',
-        'high': '高',
-        'xhigh': '超高',
+      values: <String, String>{
+        'low': l10n.t('reasoning.low'),
+        'medium': l10n.t('reasoning.medium'),
+        'high': l10n.t('reasoning.high'),
+        'xhigh': l10n.t('reasoning.xhigh'),
       },
       onSelected: model.updateDefaultReasoning,
     );
@@ -723,27 +751,27 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     );
   }
 
-  String _policyLabel(String value) {
+  String _policyLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'ask':
-        return '每次确认';
+        return l10n.t('policy.ask');
       case 'full':
-        return '完全权限';
+        return l10n.t('policy.full');
       default:
-        return '自动审查';
+        return l10n.t('policy.review');
     }
   }
 
-  String _reasoningLabel(String value) {
+  String _reasoningLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'low':
-        return '低';
+        return l10n.t('reasoning.low');
       case 'high':
-        return '高';
+        return l10n.t('reasoning.high');
       case 'xhigh':
-        return '超高';
+        return l10n.t('reasoning.xhigh');
       default:
-        return '中';
+        return l10n.t('reasoning.medium');
     }
   }
 }

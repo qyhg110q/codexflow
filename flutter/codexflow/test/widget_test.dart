@@ -15,4 +15,20 @@ void main() {
     expect(find.text('审批'), findsWidgets);
     expect(find.text('设置'), findsOneWidget);
   });
+
+  testWidgets('changes primary chrome when language is switched', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'codexflow.languageCode': 'en',
+    });
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(CodexFlowApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sessions'), findsWidgets);
+    expect(find.text('Approvals'), findsWidgets);
+    expect(find.text('Settings'), findsOneWidget);
+  });
 }

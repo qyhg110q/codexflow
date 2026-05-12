@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../navigation/app_navigation.dart';
 import '../services/api_client.dart';
@@ -283,6 +284,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
+    final l10n = AppLocalizations.of(model.languageCode);
     final detail = _detail(model);
     final summary = _summary(model);
     final capabilities = summary == null
@@ -310,7 +312,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       backgroundColor: Palette.canvas,
       appBar: AppBar(
         title: Text(
-          summary?.displayName ?? '会话',
+          summary?.displayName ?? l10n.t('session.fallbackTitle'),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: roundedTextStyle(size: 17, weight: FontWeight.w600),
@@ -358,7 +360,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         if (summary != null)
                           _ThreadHeader(summary: summary)
                         else
-                          const _SystemBubble(text: '正在加载会话信息'),
+                          _SystemBubble(text: l10n.t('session.loadingInfo')),
                         const SizedBox(height: 14),
                         if (detail == null)
                           const _LoadingBubble()
@@ -370,7 +372,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         ],
                         if (activeTurn != null) ...<Widget>[
                           const SizedBox(height: 8),
-                          const _SystemBubble(text: 'Agent 正在回复'),
+                          _SystemBubble(text: l10n.t('session.agentReplying')),
                         ],
                         if (summary != null &&
                             (summary.isEnded || !summary.loaded)) ...<Widget>[
@@ -435,6 +437,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     SessionDetail detail,
     SessionSummary? summary,
   ) {
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
     final messages = <Widget>[];
     for (final turn in detail.turns) {
       final planText = _planText(turn);
@@ -451,7 +454,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         );
       }
       for (final item in turn.items) {
-        final bubble = _bubbleForItem(item, summary, turn);
+        final bubble = _bubbleForItem(
+          item,
+          summary,
+          turn,
+          showAgentActions: _shouldShowAgentActions(item, summary, turn),
+        );
         if (bubble == null) {
           continue;
         }
@@ -464,14 +472,20 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         if (messages.isNotEmpty) {
           messages.add(const SizedBox(height: 10));
         }
-        messages.add(_SystemBubble(text: '执行失败：${turn.error}'));
+        messages.add(
+          _SystemBubble(
+            text: AppLocalizations.of(
+              context.read<AppModel>().languageCode,
+            ).t('session.executionFailed', {'error': turn.error}),
+          ),
+        );
       }
     }
 
     if (messages.isEmpty) {
       final empty = summary?.loaded == true
-          ? '还没有消息。直接在下面输入，开始第一轮。'
-          : '这个会话当前只有历史摘要，接管后才能继续对话。';
+          ? l10n.t('session.noMessagesManaged')
+          : l10n.t('session.noMessagesHistory');
       messages.add(_SystemBubble(text: empty));
     }
 
@@ -482,7 +496,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (turn.plan.isEmpty && turn.planExplanation.trim().isEmpty) {
       return '';
     }
-    final parts = <String>['思考'];
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
+    final parts = <String>[l10n.t('session.thinking')];
     final explanation = turn.planExplanation.trim();
     if (explanation.isNotEmpty) {
       parts.add(
@@ -512,8 +527,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   Widget? _bubbleForItem(
     TurnItem item,
     SessionSummary? summary,
-    TurnDetail turn,
-  ) {
+    TurnDetail turn, {
+    required bool showAgentActions,
+  }) {
     final body = item.body.trim();
     switch (item.type) {
       case 'userMessage':
@@ -528,7 +544,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         return _ChatBubble(
           role: _BubbleRole.agent,
           text: body,
-          onBranch: summary != null && !summary.isClaudeSession
+          showAgentActions: showAgentActions,
+          onBranch:
+              showAgentActions && summary != null && !summary.isClaudeSession
               ? () => _branchFromSession(summary, turn.id)
               : null,
         );
@@ -584,6 +602,29 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           ),
         );
     }
+  }
+
+  bool _shouldShowAgentActions(
+    TurnItem item,
+    SessionSummary? summary,
+    TurnDetail turn,
+  ) {
+    if (summary == null ||
+        item.type != 'agentMessage' ||
+        item.body.trim().isEmpty ||
+        turn.status != 'completed') {
+      return false;
+    }
+
+    for (var index = turn.items.length - 1; index >= 0; index -= 1) {
+      final candidate = turn.items[index];
+      if (candidate.type == 'agentMessage' &&
+          candidate.body.trim().isNotEmpty) {
+        return identical(candidate, item) ||
+            (candidate.id.isNotEmpty && candidate.id == item.id);
+      }
+    }
+    return false;
   }
 
   String _eventText(String title, String body, String status) {
@@ -1100,10 +1141,16 @@ class _LoadingBubble extends StatelessWidget {
 enum _BubbleRole { user, agent }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.role, required this.text, this.onBranch});
+  const _ChatBubble({
+    required this.role,
+    required this.text,
+    this.showAgentActions = false,
+    this.onBranch,
+  });
 
   final _BubbleRole role;
   final String text;
+  final bool showAgentActions;
   final Future<void> Function()? onBranch;
 
   @override
@@ -1158,34 +1205,36 @@ class _ChatBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           bubble,
-          const SizedBox(height: 4),
-          _AgentMessageActions(
-            onBranch: onBranch,
-            onCopy: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              if (!context.mounted) {
-                return;
-              }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '已复制回复',
-                    style: roundedTextStyle(
-                      size: 13,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
+          if (showAgentActions) ...<Widget>[
+            const SizedBox(height: 4),
+            _AgentMessageActions(
+              onBranch: onBranch,
+              onCopy: () async {
+                await Clipboard.setData(ClipboardData(text: text));
+                if (!context.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '已复制回复',
+                      style: roundedTextStyle(
+                        size: 13,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(milliseconds: 1300),
+                    backgroundColor: Palette.ink,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(milliseconds: 1300),
-                  backgroundColor: Palette.ink,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

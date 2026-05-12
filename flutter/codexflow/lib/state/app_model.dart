@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../i18n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../services/api_client.dart';
 
@@ -73,6 +74,10 @@ class AppModel extends ChangeNotifier {
       defaultModel = _prefs.getString(_defaultModelKey) ?? 'GPT-5.4',
       defaultReasoning = _prefs.getString(_defaultReasoningKey) ?? 'medium',
       defaultSpeed = _prefs.getString(_defaultSpeedKey) ?? 'standard',
+      languageCode =
+          AppLocalizations.isSupported(_prefs.getString(_languageCodeKey) ?? '')
+          ? _prefs.getString(_languageCodeKey)!
+          : AppLocalizations.defaultCode,
       localMode = _prefs.getBool(_localModeKey) ?? true;
 
   static const _baseUrlKey = 'codexflow.baseURL';
@@ -84,6 +89,7 @@ class AppModel extends ChangeNotifier {
   static const _defaultModelKey = 'codexflow.defaultModel';
   static const _defaultReasoningKey = 'codexflow.defaultReasoning';
   static const _defaultSpeedKey = 'codexflow.defaultSpeed';
+  static const _languageCodeKey = 'codexflow.languageCode';
   static const _localModeKey = 'codexflow.localMode';
 
   final SharedPreferences _prefs;
@@ -95,6 +101,7 @@ class AppModel extends ChangeNotifier {
   String defaultModel;
   String defaultReasoning;
   String defaultSpeed;
+  String languageCode;
   bool localMode;
   DashboardResponse dashboard = DashboardResponse.placeholder();
   final Map<String, SessionDetail> sessionDetails = <String, SessionDetail>{};
@@ -378,6 +385,15 @@ class AppModel extends ChangeNotifier {
   Future<void> updateDefaultSpeed(String value) async {
     defaultSpeed = value;
     await _prefs.setString(_defaultSpeedKey, value);
+    notifyListeners();
+  }
+
+  Future<void> updateLanguageCode(String value) async {
+    if (!AppLocalizations.isSupported(value)) {
+      return;
+    }
+    languageCode = value;
+    await _prefs.setString(_languageCodeKey, value);
     notifyListeners();
   }
 

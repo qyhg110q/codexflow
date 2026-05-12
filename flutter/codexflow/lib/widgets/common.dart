@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
+import '../state/app_model.dart';
 import '../theme/palette.dart';
 
 extension AppColorAlpha on Color {
@@ -204,6 +207,7 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = _tone;
+    final l10n = AppLocalizations.of(context.watch<AppModel>().languageCode);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -211,33 +215,33 @@ class StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        _label,
+        _label(l10n),
         style: roundedTextStyle(size: 11, weight: FontWeight.w700, color: tone),
       ),
     );
   }
 
-  String get _label {
+  String _label(AppLocalizations l10n) {
     if (ended) {
-      return '已结束';
+      return l10n.t('status.ended');
     }
     if (waiting) {
-      return '待处理';
+      return l10n.t('status.pending');
     }
 
     switch (status) {
       case 'active':
       case 'inProgress':
-        return '运行中';
+        return l10n.t('status.running');
       case 'completed':
-        return '已完成';
+        return l10n.t('status.completed');
       case 'notLoaded':
-        return '未接管';
+        return l10n.t('status.notLoaded');
       case 'failed':
       case 'systemError':
-        return '失败';
+        return l10n.t('status.failed');
       case 'idle':
-        return '空闲';
+        return l10n.t('status.idle');
       default:
         return status;
     }
@@ -281,10 +285,13 @@ class AgentStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context.watch<AppModel>().languageCode);
     final tone = connecting
         ? Palette.warning
         : (connected ? Palette.accent : Palette.danger);
-    final label = connecting ? '连接中' : (connected ? '在线' : '离线');
+    final label = connecting
+        ? l10n.t('status.connecting')
+        : (connected ? l10n.t('status.online') : l10n.t('status.offline'));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(

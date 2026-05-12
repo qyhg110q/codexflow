@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
@@ -16,18 +17,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
+    final l10n = AppLocalizations.of(model.languageCode);
     final connectionTone = model.isAgentConnecting
         ? Palette.warning
         : (model.isAgentOnline ? Palette.accent : Palette.danger);
     final connectionLabel = model.isAgentConnecting
-        ? '连接中'
-        : (model.isAgentOnline ? '在线' : '离线');
+        ? l10n.t('status.connecting')
+        : (model.isAgentOnline
+              ? l10n.t('status.online')
+              : l10n.t('status.offline'));
 
     return Scaffold(
       backgroundColor: Palette.canvas,
       appBar: AppBar(
         title: Text(
-          '设置',
+          l10n.t('settings.title'),
           style: roundedTextStyle(size: 17, weight: FontWeight.w600),
         ),
         centerTitle: true,
@@ -39,7 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               children: <Widget>[
                 Text(
-                  '设置',
+                  l10n.t('settings.title'),
                   style: roundedTextStyle(size: 19, weight: FontWeight.w700),
                 ),
                 const Spacer(),
@@ -58,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          'Agent 地址',
+                          l10n.t('settings.agentAddress'),
                           style: roundedTextStyle(
                             size: 16,
                             weight: FontWeight.w600,
@@ -66,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       Tooltip(
-                        message: '添加 Agent',
+                        message: l10n.t('settings.addAgent'),
                         child: IconButton.filledTonal(
                           visualDensity: VisualDensity.compact,
                           style: IconButton.styleFrom(
@@ -81,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '点击切换 Agent，长按可修改或删除。切换后会立即连接，离线时每 10 秒重试。',
+                    l10n.t('settings.agentHelp'),
                     style: roundedTextStyle(
                       size: 13,
                       weight: FontWeight.w500,
@@ -111,7 +115,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       model.dashboard.agent.listenAddr.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 4),
                     Text(
-                      '当前监听：${model.dashboard.agent.listenAddr}',
+                      l10n.t('settings.currentListen', {
+                        'addr': model.dashboard.agent.listenAddr,
+                      }),
                       style: roundedTextStyle(
                         size: 12,
                         weight: FontWeight.w500,
@@ -131,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Row(
                     children: <Widget>[
                       Text(
-                        '当前连接',
+                        l10n.t('settings.currentConnection'),
                         style: roundedTextStyle(
                           size: 16,
                           weight: FontWeight.w600,
@@ -173,23 +179,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 10),
                   _SettingsInfoRow(
-                    title: 'Agent',
+                    title: l10n.t('common.agent'),
                     value: model.selectedAgentEndpoint.name,
                   ),
                   const SizedBox(height: 8),
-                  _SettingsInfoRow(title: '入口地址', value: model.baseUrlString),
+                  _SettingsInfoRow(
+                    title: l10n.t('settings.entryAddress'),
+                    value: model.baseUrlString,
+                  ),
                   const SizedBox(height: 8),
                   _SettingsInfoRow(
-                    title: '监听地址',
+                    title: l10n.t('settings.listenAddress'),
                     value:
                         model.isAgentOnline &&
                             model.dashboard.agent.listenAddr.isNotEmpty
                         ? model.dashboard.agent.listenAddr
-                        : '未发现',
+                        : l10n.t('settings.notFound'),
                   ),
                   const SizedBox(height: 8),
                   _SettingsInfoRow(
-                    title: 'Codex 路径',
+                    title: l10n.t('settings.codexPath'),
                     value: model.dashboard.agent.codexBinaryPath,
                   ),
                   if (model.agentConnectionError.isNotEmpty) ...<Widget>[
@@ -221,12 +230,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    '默认执行策略',
+                    l10n.t('settings.defaultPolicy'),
                     style: roundedTextStyle(size: 16, weight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '这些配置先作为 Flutter 本地 UI 偏好保存。后端未持久化前，创建会话仍按现有 Agent API 执行。',
+                    l10n.t('settings.localPreferenceNote'),
                     style: roundedTextStyle(
                       size: 13,
                       weight: FontWeight.w500,
@@ -236,25 +245,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 12),
                   _SettingsChoiceRow(
-                    title: '权限策略',
-                    value: _policyLabel(model.defaultExecutionPolicy),
+                    title: l10n.t('settings.permissionPolicy'),
+                    value: _policyLabel(model.defaultExecutionPolicy, l10n),
                     onTap: () => _showValuePicker(
-                      title: '默认执行策略',
+                      title: l10n.t('settings.defaultPolicy'),
                       current: model.defaultExecutionPolicy,
-                      values: const <String, String>{
-                        'review': '自动审查',
-                        'ask': '每次确认',
-                        'full': '完全使用权限',
+                      values: <String, String>{
+                        'review': l10n.t('policy.review'),
+                        'ask': l10n.t('policy.ask'),
+                        'full': l10n.t('policy.full'),
                       },
                       onSelected: model.updateDefaultExecutionPolicy,
                     ),
                   ),
                   const SizedBox(height: 8),
                   _SettingsChoiceRow(
-                    title: '模型',
+                    title: l10n.t('common.model'),
                     value: model.defaultModel,
                     onTap: () => _showValuePicker(
-                      title: '默认模型',
+                      title: l10n.t('settings.defaultModel'),
                       current: model.defaultModel,
                       values: const <String, String>{
                         'GPT-5.3-Codex': 'GPT-5.3-Codex',
@@ -266,32 +275,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 8),
                   _SettingsChoiceRow(
-                    title: '推理深度',
-                    value: _reasoningLabel(model.defaultReasoning),
+                    title: l10n.t('settings.reasoningDepth'),
+                    value: _reasoningLabel(model.defaultReasoning, l10n),
                     onTap: () => _showValuePicker(
-                      title: '推理深度',
+                      title: l10n.t('settings.reasoningDepth'),
                       current: model.defaultReasoning,
-                      values: const <String, String>{
-                        'low': '低',
-                        'medium': '中',
-                        'high': '高',
-                        'xhigh': '超高',
+                      values: <String, String>{
+                        'low': l10n.t('reasoning.low'),
+                        'medium': l10n.t('reasoning.medium'),
+                        'high': l10n.t('reasoning.high'),
+                        'xhigh': l10n.t('reasoning.xhigh'),
                       },
                       onSelected: model.updateDefaultReasoning,
                     ),
                   ),
                   const SizedBox(height: 8),
                   _SettingsChoiceRow(
-                    title: '速度',
-                    value: _speedLabel(model.defaultSpeed),
+                    title: l10n.t('settings.defaultSpeed'),
+                    value: _speedLabel(model.defaultSpeed, l10n),
                     onTap: () => _showValuePicker(
-                      title: '默认速度',
+                      title: l10n.t('settings.defaultSpeed'),
                       current: model.defaultSpeed,
-                      values: const <String, String>{
-                        'standard': '标准',
-                        'fast': '快速',
+                      values: <String, String>{
+                        'standard': l10n.t('speed.standard'),
+                        'fast': l10n.t('speed.fast'),
                       },
                       onSelected: model.updateDefaultSpeed,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsChoiceRow(
+                    title: l10n.t('settings.language'),
+                    value: AppLocalizations.languageName(model.languageCode),
+                    onTap: () => _showValuePicker(
+                      title: l10n.t('settings.selectLanguage'),
+                      current: model.languageCode,
+                      values: <String, String>{
+                        for (final language in AppLocalizations.languages)
+                          language.code: language.nativeName,
+                      },
+                      onSelected: model.updateLanguageCode,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.t('settings.languageHelp'),
+                    style: roundedTextStyle(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: Palette.mutedInk,
+                      height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -300,7 +333,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: model.localMode,
                     activeThumbColor: Palette.accent,
                     title: Text(
-                      '本地模式',
+                      l10n.t('settings.localMode'),
                       style: roundedTextStyle(
                         size: 14,
                         weight: FontWeight.w700,
@@ -308,8 +341,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     subtitle: Text(
                       model.localMode
-                          ? '优先连接局域网 Agent'
-                          : '保留给后续 relay / pairing',
+                          ? l10n.t('settings.localModeOn')
+                          : l10n.t('settings.localModeOff'),
                       style: roundedTextStyle(
                         size: 12,
                         weight: FontWeight.w500,
@@ -322,13 +355,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const PanelCard(
+            PanelCard(
               compact: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    '移动端原则',
+                    l10n.t('settings.mobilePrinciple'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -337,7 +370,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '首页用于创建或打开会话，审批集中处理风险动作，设置只保留连接与默认偏好。',
+                    l10n.t('settings.mobilePrincipleBody'),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -355,6 +388,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showAgentEndpointActions(AgentEndpoint endpoint) async {
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -385,7 +419,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: Palette.softBlue,
                   ),
                   title: Text(
-                    '修改',
+                    l10n.t('common.edit'),
                     style: roundedTextStyle(size: 15, weight: FontWeight.w700),
                   ),
                   onTap: () {
@@ -399,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: Palette.danger,
                   ),
                   title: Text(
-                    '删除',
+                    l10n.t('common.delete'),
                     style: roundedTextStyle(
                       size: 15,
                       weight: FontWeight.w700,
@@ -422,6 +456,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showAgentEndpointEditor({AgentEndpoint? endpoint}) async {
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
     final nameController = TextEditingController(text: endpoint?.name ?? '');
     final urlController = TextEditingController(text: endpoint?.url ?? '');
     try {
@@ -435,7 +470,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 backgroundColor: Palette.canvas,
                 surfaceTintColor: Colors.transparent,
                 title: Text(
-                  endpoint == null ? '添加 Agent' : '修改 Agent',
+                  endpoint == null
+                      ? l10n.t('settings.addAgent')
+                      : l10n.t('settings.editAgent'),
                   style: roundedTextStyle(size: 17, weight: FontWeight.w700),
                 ),
                 content: Column(
@@ -443,7 +480,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: <Widget>[
                     CodexTextField(
                       controller: nameController,
-                      hintText: 'Agent 名称',
+                      hintText: l10n.t('settings.agentName'),
                     ),
                     const SizedBox(height: 10),
                     CodexTextField(
@@ -471,7 +508,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
                     child: Text(
-                      '取消',
+                      l10n.t('common.cancel'),
                       style: roundedTextStyle(
                         size: 14,
                         weight: FontWeight.w700,
@@ -484,11 +521,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       final name = nameController.text.trim();
                       final url = _normalizedEndpointUrl(urlController.text);
                       if (name.isEmpty) {
-                        setDialogState(() => errorText = '请输入 Agent 名称。');
+                        setDialogState(
+                          () => errorText = l10n.t('settings.enterAgentName'),
+                        );
                         return;
                       }
                       if (!_isValidEndpointUrl(url)) {
-                        setDialogState(() => errorText = '请输入有效的 HTTP 地址。');
+                        setDialogState(
+                          () => errorText = l10n.t('settings.enterValidHttp'),
+                        );
                         return;
                       }
                       Navigator.of(
@@ -496,7 +537,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ).pop(_AgentEndpointFormResult(name: name, url: url));
                     },
                     child: Text(
-                      endpoint == null ? '添加' : '保存',
+                      endpoint == null
+                          ? l10n.t('common.add')
+                          : l10n.t('common.save'),
                       style: roundedTextStyle(
                         size: 14,
                         weight: FontWeight.w700,
@@ -607,36 +650,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String _policyLabel(String value) {
+  String _policyLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'ask':
-        return '每次确认';
+        return l10n.t('policy.ask');
       case 'full':
-        return '完全权限';
+        return l10n.t('policy.full');
       default:
-        return '自动审查';
+        return l10n.t('policy.review');
     }
   }
 
-  String _reasoningLabel(String value) {
+  String _reasoningLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'low':
-        return '低';
+        return l10n.t('reasoning.low');
       case 'high':
-        return '高';
+        return l10n.t('reasoning.high');
       case 'xhigh':
-        return '超高';
+        return l10n.t('reasoning.xhigh');
       default:
-        return '中';
+        return l10n.t('reasoning.medium');
     }
   }
 
-  String _speedLabel(String value) {
+  String _speedLabel(String value, AppLocalizations l10n) {
     switch (value) {
       case 'fast':
-        return '快速';
+        return l10n.t('speed.fast');
       default:
-        return '标准';
+        return l10n.t('speed.standard');
     }
   }
 }
@@ -667,6 +710,7 @@ class _AgentEndpointTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context.watch<AppModel>().languageCode);
     final tone = connecting
         ? Palette.warning
         : (connected ? Palette.accent : Palette.danger);
@@ -759,7 +803,11 @@ class _AgentEndpointTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        connecting ? '连接中' : (connected ? '已连接' : '重试中'),
+                        connecting
+                            ? l10n.t('status.connecting')
+                            : (connected
+                                  ? l10n.t('status.connected')
+                                  : l10n.t('status.retrying')),
                         style: roundedTextStyle(
                           size: 11,
                           weight: FontWeight.w700,

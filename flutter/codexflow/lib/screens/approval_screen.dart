@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
@@ -40,6 +41,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
+    final l10n = AppLocalizations.of(model.languageCode);
     final approvals = model.selectedAgentApprovals;
     final supportsApprovals =
         model.selectedAgentOption?.capabilities.supportsApprovals ?? true;
@@ -47,7 +49,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
       backgroundColor: Palette.canvas,
       appBar: AppBar(
         title: Text(
-          '审批',
+          l10n.t('approval.title'),
           style: roundedTextStyle(size: 17, weight: FontWeight.w600),
         ),
         centerTitle: true,
@@ -62,7 +64,7 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
               Row(
                 children: <Widget>[
                   Text(
-                    '审批中心',
+                    l10n.t('approval.center'),
                     style: roundedTextStyle(size: 19, weight: FontWeight.w700),
                   ),
                   const Spacer(),
@@ -106,7 +108,9 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            approvals.isEmpty ? '没有等待项' : '等待你拍板',
+                            approvals.isEmpty
+                                ? l10n.t('approval.noneWaiting')
+                                : l10n.t('approval.waitingDecision'),
                             style: roundedTextStyle(
                               size: 16,
                               weight: FontWeight.w700,
@@ -115,8 +119,8 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                           const SizedBox(height: 4),
                           Text(
                             supportsApprovals
-                                ? '命令、文件变更、权限和输入请求会集中在这里。'
-                                : '当前 Agent 不提供审批事件流。',
+                                ? l10n.t('approval.streamBody')
+                                : l10n.t('approval.unsupportedBody'),
                             style: roundedTextStyle(
                               size: 12,
                               weight: FontWeight.w500,
@@ -135,7 +139,9 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
                 PanelCard(
                   compact: true,
                   child: Text(
-                    supportsApprovals ? '当前没有待处理审批。' : '当前 Agent 不支持审批能力。',
+                    supportsApprovals
+                        ? l10n.t('approval.empty')
+                        : l10n.t('approval.unsupported'),
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
