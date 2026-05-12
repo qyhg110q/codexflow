@@ -698,6 +698,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       values: const <String, String>{
         'GPT-5.3-Codex': 'GPT-5.3-Codex',
         'GPT-5.4': 'GPT-5.4',
+        'GPT-5.4-Mini': 'GPT-5.4-Mini',
         'GPT-5.5': 'GPT-5.5',
       },
       onSelected: model.updateDefaultModel,
