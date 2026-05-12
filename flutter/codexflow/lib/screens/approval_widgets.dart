@@ -75,6 +75,7 @@ class ApprovalCardBody extends StatefulWidget {
 
 class _ApprovalCardBodyState extends State<ApprovalCardBody> {
   late final TextEditingController _replyController;
+  bool _isResolving = false;
 
   @override
   void initState() {
@@ -211,9 +212,11 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
                 title: option.label,
                 background: Palette.softBlue.appOpacity(0.15),
                 foreground: Palette.softBlue,
+                enabled: !_isResolving,
                 onPressed: () async {
                   FocusScope.of(context).unfocus();
-                  await context.read<AppModel>().resolve(
+                  await _resolve(
+                    context,
                     approval: widget.approval,
                     action: ApprovalAction.submitText(option.label),
                   );
@@ -228,12 +231,14 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
         ),
         const SizedBox(height: 10),
         ActionButton(
-          title: '提交回复',
+          title: _isResolving ? '提交中' : '提交回复',
           background: Palette.accent,
           foreground: Colors.white,
+          enabled: !_isResolving,
           onPressed: () async {
             FocusScope.of(context).unfocus();
-            await context.read<AppModel>().resolve(
+            await _resolve(
+              context,
               approval: widget.approval,
               action: ApprovalAction.submitText(_replyController.text),
             );
@@ -256,11 +261,13 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ActionButton(
-                      title: button.title,
+                      title: _isResolving ? '处理中' : button.title,
                       background: button.background,
                       foreground: button.foreground,
+                      enabled: !_isResolving,
                       onPressed: () async {
-                        await context.read<AppModel>().resolve(
+                        await _resolve(
+                          context,
                           approval: widget.approval,
                           action: button.action,
                         );
@@ -285,8 +292,10 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
                       background: button.background,
                       foreground: button.foreground,
                       padding: const EdgeInsets.symmetric(vertical: 10),
+                      enabled: !_isResolving,
                       onPressed: () async {
-                        await context.read<AppModel>().resolve(
+                        await _resolve(
+                          context,
                           approval: widget.approval,
                           action: button.action,
                         );
@@ -299,6 +308,31 @@ class _ApprovalCardBodyState extends State<ApprovalCardBody> {
         ],
       ],
     );
+  }
+
+  Future<void> _resolve(
+    BuildContext context, {
+    required PendingRequestView approval,
+    required ApprovalAction action,
+  }) async {
+    if (_isResolving) {
+      return;
+    }
+    setState(() {
+      _isResolving = true;
+    });
+    try {
+      await context.read<AppModel>().resolve(
+        approval: approval,
+        action: action,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolving = false;
+        });
+      }
+    }
   }
 
   String _sessionLabel(AppModel model, PendingRequestView approval) {

@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,9 +91,78 @@ void main() {
     expect(items.single.id, 'item-1');
     expect(items.single.body, 'hello world');
   });
+
+  test('removes resolved approval from local dashboard immediately', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final model = AppModel(prefs);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    var resolveCount = 0;
+
+    unawaited(
+      server.forEach((request) async {
+        request.response.headers.contentType = ContentType.json;
+        if (request.method == 'POST' &&
+            request.uri.path == '/api/v1/approvals/req-1/resolve') {
+          resolveCount += 1;
+          request.response.write(jsonEncode(<String, Object>{'ok': true}));
+        } else if (request.method == 'GET' &&
+            request.uri.path == '/api/v1/dashboard') {
+          request.response.write(jsonEncode(_dashboardJson()));
+        } else if (request.method == 'GET' &&
+            request.uri.path == '/api/v1/sessions/thread-1') {
+          request.response.write(jsonEncode(_sessionDetailJson()));
+        } else {
+          request.response.statusCode = HttpStatus.notFound;
+          request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+        }
+        await request.response.close();
+      }),
+    );
+
+    model.baseUrlString = 'http://${server.address.host}:${server.port}';
+    model.dashboard = DashboardResponse(
+      agent: AgentSnapshot.fromJson(const <String, dynamic>{}),
+      agents: const <AgentOption>[],
+      defaultAgent: 'codex',
+      stats: DashboardStats(
+        totalSessions: 1,
+        loadedSessions: 1,
+        activeSessions: 1,
+        pendingApprovals: 1,
+      ),
+      sessions: <SessionSummary>[_summary(pendingApprovals: 1)],
+      approvals: <PendingRequestView>[
+        PendingRequestView(
+          id: 'req-1',
+          method: 'item/commandExecution/requestApproval',
+          kind: 'command',
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          itemId: 'item-1',
+          reason: '',
+          summary: 'git status',
+          choices: const <String>['accept', 'decline'],
+          createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+          params: const <String, dynamic>{'command': 'git status'},
+        ),
+      ],
+    );
+
+    await model.resolve(
+      approval: model.dashboard.approvals.single,
+      action: ApprovalAction.choice('accept'),
+    );
+    await server.close(force: true);
+
+    expect(resolveCount, 1);
+    expect(model.dashboard.approvals, isEmpty);
+    expect(model.dashboard.stats.pendingApprovals, 0);
+    expect(model.dashboard.sessions.single.pendingApprovals, 0);
+  });
 }
 
-SessionSummary _summary() {
+SessionSummary _summary({int pendingApprovals = 0}) {
   return SessionSummary(
     id: 'thread-1',
     agentId: 'codex',
@@ -104,7 +177,7 @@ SessionSummary _summary() {
     createdAt: 0,
     modelProvider: '',
     branch: '',
-    pendingApprovals: 0,
+    pendingApprovals: pendingApprovals,
     lastTurnId: 'turn-1',
     lastTurnStatus: 'inProgress',
     agentNickname: '',
@@ -133,4 +206,56 @@ TurnDetail _turn() {
     plan: const <PlanStep>[],
     items: const <TurnItem>[],
   );
+}
+
+Map<String, dynamic> _dashboardJson() {
+  return <String, dynamic>{
+    'agent': <String, dynamic>{},
+    'agents': <dynamic>[],
+    'defaultAgent': 'codex',
+    'stats': <String, dynamic>{
+      'totalSessions': 1,
+      'loadedSessions': 1,
+      'activeSessions': 1,
+      'pendingApprovals': 0,
+    },
+    'sessions': <dynamic>[
+      <String, dynamic>{
+        'id': 'thread-1',
+        'agentId': 'codex',
+        'name': '',
+        'preview': '',
+        'cwd': 'D:\\workspace',
+        'source': '',
+        'status': 'active',
+        'activeFlags': <dynamic>[],
+        'loaded': true,
+        'updatedAt': 0,
+        'createdAt': 0,
+        'modelProvider': '',
+        'branch': '',
+        'pendingApprovals': 0,
+        'lastTurnId': 'turn-1',
+        'lastTurnStatus': 'inProgress',
+        'agentNickname': '',
+        'agentRole': '',
+        'lifecycleStage': 'managed',
+        'historyAvailable': true,
+        'runtimeAvailable': true,
+        'runtimeAttachMode': '',
+        'resumeAvailable': true,
+        'resumeBlockedReason': '',
+        'ended': false,
+        'contextWindowUsage': <String, dynamic>{},
+      },
+    ],
+    'approvals': <dynamic>[],
+  };
+}
+
+Map<String, dynamic> _sessionDetailJson() {
+  return <String, dynamic>{
+    'summary': _dashboardJson()['sessions'][0],
+    'turns': <dynamic>[],
+  };
 }

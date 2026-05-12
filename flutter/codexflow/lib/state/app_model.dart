@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1050,7 +1051,8 @@ class AppModel extends ChangeNotifier {
         id: approval.id,
         result: _buildResult(approval, action),
       );
-      await refreshDashboard();
+      _removeResolvedApproval(approval);
+      await refreshDashboard(force: true);
       final session = dashboard.sessions.cast<SessionSummary?>().firstWhere(
         (item) => item?.id == approval.threadId,
         orElse: () => null,
@@ -1062,6 +1064,73 @@ class AppModel extends ChangeNotifier {
       connectionError = error.toString();
       notifyListeners();
     }
+  }
+
+  void _removeResolvedApproval(PendingRequestView approval) {
+    final remainingApprovals = dashboard.approvals
+        .where((item) => item.id != approval.id)
+        .toList();
+    if (remainingApprovals.length == dashboard.approvals.length) {
+      return;
+    }
+
+    dashboard = DashboardResponse(
+      agent: dashboard.agent,
+      agents: dashboard.agents,
+      defaultAgent: dashboard.defaultAgent,
+      stats: DashboardStats(
+        totalSessions: dashboard.stats.totalSessions,
+        loadedSessions: dashboard.stats.loadedSessions,
+        activeSessions: dashboard.stats.activeSessions,
+        pendingApprovals: remainingApprovals.length,
+      ),
+      sessions: dashboard.sessions
+          .map(
+            (session) => session.id == approval.threadId
+                ? _sessionWithPendingApprovalCount(
+                    session,
+                    math.max(0, session.pendingApprovals - 1),
+                  )
+                : session,
+          )
+          .toList(),
+      approvals: remainingApprovals,
+    );
+    notifyListeners();
+  }
+
+  SessionSummary _sessionWithPendingApprovalCount(
+    SessionSummary session,
+    int pendingApprovals,
+  ) {
+    return SessionSummary(
+      id: session.id,
+      agentId: session.agentId,
+      name: session.name,
+      preview: session.preview,
+      cwd: session.cwd,
+      source: session.source,
+      status: session.status,
+      activeFlags: session.activeFlags,
+      loaded: session.loaded,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      modelProvider: session.modelProvider,
+      branch: session.branch,
+      pendingApprovals: pendingApprovals,
+      lastTurnId: session.lastTurnId,
+      lastTurnStatus: session.lastTurnStatus,
+      agentNickname: session.agentNickname,
+      agentRole: session.agentRole,
+      lifecycleStage: session.lifecycleStage,
+      historyAvailable: session.historyAvailable,
+      runtimeAvailable: session.runtimeAvailable,
+      runtimeAttachMode: session.runtimeAttachMode,
+      resumeAvailable: session.resumeAvailable,
+      resumeBlockedReason: session.resumeBlockedReason,
+      ended: session.ended,
+      contextWindowUsage: session.contextWindowUsage,
+    );
   }
 
   Object? _buildResult(PendingRequestView approval, ApprovalAction action) {
