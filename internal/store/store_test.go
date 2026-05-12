@@ -198,6 +198,75 @@ func TestUpsertThreadMergesRealAgentMessageIDIntoLiveDelta(t *testing.T) {
 	}
 }
 
+func TestUpsertThreadDedupesInProgressPromptAndAgentMessageByContent(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.UpsertThread(codex.Thread{
+		ID: "thread-1",
+		Turns: []codex.Turn{
+			{
+				ID:     "turn-1",
+				Status: "inProgress",
+				Items: []map[string]any{
+					{
+						"id":      "local-user",
+						"type":    "userMessage",
+						"content": []any{map[string]any{"type": "text", "text": "这是测试简单回复"}},
+					},
+					{
+						"id":   "local-agent-live",
+						"type": "agentMessage",
+						"text": "我先按工作区要求读取会话规则，然后简短回复。",
+					},
+				},
+			},
+		},
+	})
+
+	sessionStore.UpsertThread(codex.Thread{
+		ID: "thread-1",
+		Turns: []codex.Turn{
+			{
+				ID:     "turn-1",
+				Status: "inProgress",
+				Items: []map[string]any{
+					{
+						"id":      "remote-user",
+						"type":    "userMessage",
+						"content": []any{map[string]any{"type": "text", "text": "这是测试简单回复"}},
+					},
+					{
+						"id":   "remote-agent",
+						"type": "agentMessage",
+						"text": "我先按工作区要求读取会话规则",
+					},
+				},
+			},
+		},
+	})
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatal("SnapshotSession() missing thread-1")
+	}
+	items := record.Thread.Turns[0].Items
+	if len(items) != 2 {
+		t.Fatalf("len(items) = %d, want 2", len(items))
+	}
+	if got := items[0]["id"]; got != "remote-user" {
+		t.Fatalf("items[0][id] = %q, want remote-user", got)
+	}
+	if got := items[1]["id"]; got != "remote-agent" {
+		t.Fatalf("items[1][id] = %q, want remote-agent", got)
+	}
+	if got := items[1]["text"]; got != "我先按工作区要求读取会话规则，然后简短回复。" {
+		t.Fatalf("items[1][text] = %q, want longer live text", got)
+	}
+}
+
 func TestHasLocalSessionState(t *testing.T) {
 	sessionStore, err := New(nil)
 	if err != nil {

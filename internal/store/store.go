@@ -777,6 +777,11 @@ func mergeTurnItems(existing, incoming []map[string]any) []map[string]any {
 		}
 		idx, ok := seen[itemID]
 		if !ok {
+			if duplicateIdx := equivalentTurnItemIndex(result, item); duplicateIdx >= 0 {
+				result[duplicateIdx] = mergeEquivalentTurnItem(result[duplicateIdx], item)
+				seen[itemID] = duplicateIdx
+				continue
+			}
 			if stringField(item, "type") == "agentMessage" {
 				if liveIdx := liveAgentMessageIndex(result); liveIdx >= 0 {
 					result[liveIdx] = mergeAgentMessageItem(result[liveIdx], item)
@@ -797,15 +802,72 @@ func mergeTurnItems(existing, incoming []map[string]any) []map[string]any {
 	return result
 }
 
+func equivalentTurnItemIndex(items []map[string]any, item map[string]any) int {
+	itemType := stringField(item, "type")
+	switch itemType {
+	case "userMessage":
+		text := normalizedItemText(item)
+		if text == "" {
+			return -1
+		}
+		for idx := len(items) - 1; idx >= 0; idx-- {
+			if stringField(items[idx], "type") == itemType && normalizedItemText(items[idx]) == text {
+				return idx
+			}
+		}
+	case "agentMessage":
+		text := normalizedItemText(item)
+		if text == "" {
+			return -1
+		}
+		for idx := len(items) - 1; idx >= 0; idx-- {
+			if stringField(items[idx], "type") != itemType {
+				continue
+			}
+			candidateText := normalizedItemText(items[idx])
+			if candidateText != "" && sameStreamingAgentMessage(candidateText, text) {
+				return idx
+			}
+		}
+	}
+	return -1
+}
+
+func mergeEquivalentTurnItem(existing, incoming map[string]any) map[string]any {
+	if stringField(existing, "type") == "agentMessage" && stringField(incoming, "type") == "agentMessage" {
+		return mergeAgentMessageItem(existing, incoming)
+	}
+	return mergeItem(incoming, existing)
+}
+
 func mergeAgentMessageItem(existing, incoming map[string]any) map[string]any {
 	merged := mergeItem(existing, incoming)
-	if stringField(existing, "id") != "" && stringField(incoming, "id") == "" {
+	if stringField(existing, "id") != "" && isLiveAgentMessageID(stringField(incoming, "id")) {
 		merged["id"] = stringField(existing, "id")
 	}
 	if len(stringField(existing, "text")) > len(stringField(incoming, "text")) {
 		merged["text"] = stringField(existing, "text")
 	}
 	return merged
+}
+
+func normalizedItemText(item map[string]any) string {
+	switch stringField(item, "type") {
+	case "userMessage":
+		return normalizeComparableText(codex.FirstUserText([]map[string]any{item}))
+	case "agentMessage":
+		return normalizeComparableText(stringField(item, "text"))
+	default:
+		return ""
+	}
+}
+
+func normalizeComparableText(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func sameStreamingAgentMessage(left, right string) bool {
+	return left == right || strings.HasPrefix(left, right) || strings.HasPrefix(right, left)
 }
 
 func agentMessageIndex(items []map[string]any) int {
@@ -822,12 +884,15 @@ func liveAgentMessageIndex(items []map[string]any) int {
 		if stringField(items[idx], "type") != "agentMessage" {
 			continue
 		}
-		itemID := stringField(items[idx], "id")
-		if itemID == "" || strings.HasSuffix(itemID, "-agent-live") {
+		if isLiveAgentMessageID(stringField(items[idx], "id")) {
 			return idx
 		}
 	}
 	return -1
+}
+
+func isLiveAgentMessageID(itemID string) bool {
+	return itemID == "" || strings.HasSuffix(itemID, "-agent-live")
 }
 
 func cloneItems(items []map[string]any) []map[string]any {
