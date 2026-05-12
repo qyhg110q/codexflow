@@ -61,7 +61,10 @@ class DashboardScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   _AgentSwitchButton(model: model),
                   const Spacer(),
-                  AgentStatusBadge(connected: model.isAgentOnline),
+                  AgentStatusBadge(
+                    connected: model.isAgentOnline,
+                    connecting: model.isAgentConnecting,
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -227,7 +230,10 @@ class _DashboardHero extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              AgentStatusBadge(connected: model.isAgentOnline),
+              AgentStatusBadge(
+                connected: model.isAgentOnline,
+                connecting: model.isAgentConnecting,
+              ),
               const SizedBox(width: 8),
               CapsuleTag(title: '端口', value: _portLabel(listenAddr)),
               const Spacer(),

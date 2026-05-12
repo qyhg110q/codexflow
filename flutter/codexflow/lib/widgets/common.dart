@@ -270,13 +270,21 @@ class StatusPill extends StatelessWidget {
 }
 
 class AgentStatusBadge extends StatelessWidget {
-  const AgentStatusBadge({super.key, required this.connected});
+  const AgentStatusBadge({
+    super.key,
+    required this.connected,
+    this.connecting = false,
+  });
 
   final bool connected;
+  final bool connecting;
 
   @override
   Widget build(BuildContext context) {
-    final tone = connected ? Palette.accent : Palette.danger;
+    final tone = connecting
+        ? Palette.warning
+        : (connected ? Palette.accent : Palette.danger);
+    final label = connecting ? '连接中' : (connected ? '在线' : '离线');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -293,7 +301,7 @@ class AgentStatusBadge extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            connected ? '在线' : '离线',
+            label,
             style: roundedTextStyle(
               size: 11,
               weight: FontWeight.w700,

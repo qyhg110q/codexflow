@@ -101,6 +101,7 @@ class AppModel extends ChangeNotifier {
   bool isRefreshing = false;
   bool isBootstrapped = false;
   bool isAgentOnline = false;
+  bool isAgentConnecting = false;
   String agentConnectionError = '';
   String connectionError = '';
   String operationNotice = '';
@@ -108,6 +109,7 @@ class AppModel extends ChangeNotifier {
   String composerDraft = '';
   String selectedStartAgentId = 'codex';
   int _consecutiveDashboardFailures = 0;
+  int _connectionGeneration = 0;
   Timer? _noticeTimer;
 
   ApiClient _client() => ApiClient(baseUrlString: baseUrlString);
@@ -263,8 +265,9 @@ class AppModel extends ChangeNotifier {
     if (selectedAgentEndpointId == id) {
       baseUrlString = normalizedUrl;
       await saveBaseUrl();
+      _markAgentConnecting();
       notifyListeners();
-      await refreshDashboard();
+      await refreshDashboard(force: true);
     } else {
       notifyListeners();
     }
@@ -318,17 +321,24 @@ class AppModel extends ChangeNotifier {
 
     selectedAgentEndpointId = endpoint.id;
     baseUrlString = endpoint.url;
-    agentConnectionError = '';
-    connectionError = '';
-    _consecutiveDashboardFailures = 0;
+    _markAgentConnecting();
     await _saveAgentEndpoints();
     await _prefs.setString(_selectedAgentEndpointKey, selectedAgentEndpointId);
     await saveBaseUrl();
     notifyListeners();
 
     if (refresh) {
-      await refreshDashboard();
+      await refreshDashboard(force: true);
     }
+  }
+
+  void _markAgentConnecting() {
+    _connectionGeneration += 1;
+    isAgentOnline = false;
+    isAgentConnecting = true;
+    agentConnectionError = '';
+    connectionError = '';
+    _consecutiveDashboardFailures = 0;
   }
 
   Future<void> _saveAgentEndpoints() async {
@@ -377,30 +387,49 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refreshDashboard() async {
-    if (isRefreshing) {
+  Future<void> refreshDashboard({bool force = false}) async {
+    if (isRefreshing && !force) {
       return;
     }
+    final requestGeneration = _connectionGeneration;
+    final requestBaseUrl = baseUrlString;
     isRefreshing = true;
     notifyListeners();
 
     try {
-      final latestDashboard = await _client().dashboard();
+      final latestDashboard = await ApiClient(
+        baseUrlString: requestBaseUrl,
+      ).dashboard();
+      if (!_isCurrentRefresh(requestGeneration, requestBaseUrl)) {
+        return;
+      }
       dashboard = latestDashboard;
       _syncSelectedAgent(latestDashboard);
       _consecutiveDashboardFailures = 0;
       isAgentOnline = latestDashboard.agent.connected;
+      isAgentConnecting = false;
       agentConnectionError = '';
     } catch (error) {
+      if (!_isCurrentRefresh(requestGeneration, requestBaseUrl)) {
+        return;
+      }
       _consecutiveDashboardFailures += 1;
       if (_consecutiveDashboardFailures >= 2 || !isAgentOnline) {
         isAgentOnline = false;
+        isAgentConnecting = false;
         agentConnectionError = error.toString();
       }
     } finally {
-      isRefreshing = false;
-      notifyListeners();
+      if (_isCurrentRefresh(requestGeneration, requestBaseUrl)) {
+        isRefreshing = false;
+        notifyListeners();
+      }
     }
+  }
+
+  bool _isCurrentRefresh(int requestGeneration, String requestBaseUrl) {
+    return requestGeneration == _connectionGeneration &&
+        requestBaseUrl == baseUrlString;
   }
 
   List<PendingRequestView> approvalsFor(String sessionId) {

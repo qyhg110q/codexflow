@@ -16,9 +16,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
-    final connectionTone = model.isAgentOnline
-        ? Palette.accent
-        : Palette.danger;
+    final connectionTone = model.isAgentConnecting
+        ? Palette.warning
+        : (model.isAgentOnline ? Palette.accent : Palette.danger);
+    final connectionLabel = model.isAgentConnecting
+        ? '连接中'
+        : (model.isAgentOnline ? '在线' : '离线');
 
     return Scaffold(
       backgroundColor: Palette.canvas,
@@ -40,7 +43,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: roundedTextStyle(size: 19, weight: FontWeight.w700),
                 ),
                 const Spacer(),
-                AgentStatusBadge(connected: model.isAgentOnline),
+                AgentStatusBadge(
+                  connected: model.isAgentOnline,
+                  connecting: model.isAgentConnecting,
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -93,12 +99,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         connected:
                             model.isSelectedAgentEndpoint(endpoint.id) &&
                             model.isAgentOnline,
+                        connecting:
+                            model.isSelectedAgentEndpoint(endpoint.id) &&
+                            model.isAgentConnecting,
                         onTap: () => model.selectAgentEndpoint(endpoint.id),
                         onLongPress: () => _showAgentEndpointActions(endpoint),
                       ),
                     ),
                   ),
-                  if (model.dashboard.agent.connected &&
+                  if (model.isAgentOnline &&
                       model.dashboard.agent.listenAddr.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 4),
                     Text(
@@ -150,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              model.isAgentOnline ? '在线' : '离线',
+                              connectionLabel,
                               style: roundedTextStyle(
                                 size: 12,
                                 weight: FontWeight.w700,
@@ -172,9 +181,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 8),
                   _SettingsInfoRow(
                     title: '监听地址',
-                    value: model.dashboard.agent.listenAddr.isEmpty
-                        ? '未发现'
-                        : model.dashboard.agent.listenAddr,
+                    value:
+                        model.isAgentOnline &&
+                            model.dashboard.agent.listenAddr.isNotEmpty
+                        ? model.dashboard.agent.listenAddr
+                        : '未发现',
                   ),
                   const SizedBox(height: 8),
                   _SettingsInfoRow(
@@ -642,6 +653,7 @@ class _AgentEndpointTile extends StatelessWidget {
     required this.endpoint,
     required this.selected,
     required this.connected,
+    required this.connecting,
     required this.onTap,
     required this.onLongPress,
   });
@@ -649,12 +661,15 @@ class _AgentEndpointTile extends StatelessWidget {
   final AgentEndpoint endpoint;
   final bool selected;
   final bool connected;
+  final bool connecting;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    final tone = connected ? Palette.accent : Palette.danger;
+    final tone = connecting
+        ? Palette.warning
+        : (connected ? Palette.accent : Palette.danger);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -744,7 +759,7 @@ class _AgentEndpointTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        connected ? '已连接' : '重试中',
+                        connecting ? '连接中' : (connected ? '已连接' : '重试中'),
                         style: roundedTextStyle(
                           size: 11,
                           weight: FontWeight.w700,
