@@ -99,6 +99,7 @@ class ApiClient {
     required String cwd,
     required String prompt,
     required String agentId,
+    required String policy,
   }) async {
     final json = await _decodeMap(
       '/api/v1/sessions',
@@ -108,6 +109,7 @@ class ApiClient {
         'cwd': cwd,
         'prompt': prompt,
         'agent': agentId,
+        'policy': policy,
       },
       timeout: const Duration(seconds: 45),
     );
@@ -154,6 +156,7 @@ class ApiClient {
   Future<TurnDetail> startTurn({
     required String sessionId,
     required String prompt,
+    required String policy,
     List<String> imageUploadIds = const <String>[],
   }) async {
     final json = await _decodeMap(
@@ -161,6 +164,7 @@ class ApiClient {
       method: 'POST',
       body: <String, dynamic>{
         'prompt': prompt,
+        'policy': policy,
         'inputs': _buildInputs(prompt: prompt, imageUploadIds: imageUploadIds),
       },
     );

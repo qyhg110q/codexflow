@@ -1627,6 +1627,8 @@ class _ChatComposer extends StatelessWidget {
                         OptionChipButton(
                           label: '',
                           value: _policyLabel(model.defaultExecutionPolicy),
+                          icon: _policyIcon(model.defaultExecutionPolicy),
+                          tone: _policyTone(model.defaultExecutionPolicy),
                           onPressed: () => _showPolicyPicker(context, model),
                         ),
                         const SizedBox(width: 6),
@@ -1674,10 +1676,12 @@ class _ChatComposer extends StatelessWidget {
       title: '默认执行策略',
       value: model.defaultExecutionPolicy,
       values: const <String, String>{
+        'ask': '默认权限',
         'review': '自动审查',
-        'ask': '每次确认',
-        'full': '完全使用权限',
+        'full': '完全权限',
       },
+      iconForValue: _policyIcon,
+      toneForValue: _policyTone,
       onSelected: model.updateDefaultExecutionPolicy,
     );
   }
@@ -1719,6 +1723,8 @@ class _ChatComposer extends StatelessWidget {
     required String title,
     required String value,
     required Map<String, String> values,
+    IconData Function(String value)? iconForValue,
+    Color? Function(String value)? toneForValue,
     required Future<void> Function(String value) onSelected,
   }) async {
     await showModalBottomSheet<void>(
@@ -1731,6 +1737,8 @@ class _ChatComposer extends StatelessWidget {
               (entry) => _OptionSheetTile(
                 title: entry.value,
                 selected: entry.key == value,
+                icon: iconForValue?.call(entry.key),
+                tone: toneForValue?.call(entry.key),
                 onTap: () async {
                   await onSelected(entry.key);
                   if (context.mounted) {
@@ -1747,11 +1755,33 @@ class _ChatComposer extends StatelessWidget {
   String _policyLabel(String value) {
     switch (value) {
       case 'ask':
-        return '每次确认';
+        return '默认权限';
       case 'full':
         return '完全权限';
       default:
         return '自动审查';
+    }
+  }
+
+  IconData _policyIcon(String value) {
+    switch (value) {
+      case 'review':
+        return Icons.rate_review_outlined;
+      case 'full':
+        return Icons.shield_outlined;
+      default:
+        return Icons.pan_tool_alt_outlined;
+    }
+  }
+
+  Color? _policyTone(String value) {
+    switch (value) {
+      case 'review':
+        return Palette.softBlue;
+      case 'full':
+        return Palette.warning;
+      default:
+        return null;
     }
   }
 
@@ -1883,14 +1913,19 @@ class _OptionSheetTile extends StatelessWidget {
     required this.title,
     required this.selected,
     required this.onTap,
+    this.icon,
+    this.tone,
   });
 
   final String title;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
+  final Color? tone;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveTone = tone ?? Palette.mutedInk;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -1902,27 +1937,33 @@ class _OptionSheetTile extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: selected
-                  ? Palette.softBlue.appOpacity(0.10)
+                  ? effectiveTone.appOpacity(0.10)
                   : Palette.surfaceStrong,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected
-                    ? Palette.softBlue.appOpacity(0.28)
-                    : Palette.line,
+                color: selected ? effectiveTone.appOpacity(0.28) : Palette.line,
               ),
             ),
             child: Row(
               children: <Widget>[
+                if (icon != null) ...<Widget>[
+                  Icon(icon, size: 20, color: effectiveTone),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     title,
-                    style: roundedTextStyle(size: 14, weight: FontWeight.w700),
+                    style: roundedTextStyle(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: tone ?? Palette.ink,
+                    ),
                   ),
                 ),
                 if (selected)
-                  const Icon(
+                  Icon(
                     Icons.check_circle_rounded,
-                    color: Palette.softBlue,
+                    color: effectiveTone,
                     size: 20,
                   ),
               ],

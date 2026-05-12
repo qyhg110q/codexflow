@@ -61,7 +61,7 @@ func (a *fakeAgent) Refresh(context.Context) error {
 	return nil
 }
 
-func (a *fakeAgent) StartSession(context.Context, string, string, string) (runtime.SessionSummary, error) {
+func (a *fakeAgent) StartSession(context.Context, string, string, string, string) (runtime.SessionSummary, error) {
 	return runtime.SessionSummary{}, nil
 }
 
@@ -91,7 +91,7 @@ func (a *fakeAgent) ArchiveSession(context.Context, string) error {
 	return nil
 }
 
-func (a *fakeAgent) StartTurn(context.Context, string, []map[string]any) (runtime.TurnDetail, error) {
+func (a *fakeAgent) StartTurn(context.Context, string, []map[string]any, string) (runtime.TurnDetail, error) {
 	return runtime.TurnDetail{}, nil
 }
 

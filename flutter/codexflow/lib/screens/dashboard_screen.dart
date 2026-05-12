@@ -537,7 +537,8 @@ class _DashboardComposerState extends State<_DashboardComposer> {
                   OptionChipButton(
                     label: l10n.t('common.strategy'),
                     value: _policyLabel(model.defaultExecutionPolicy, l10n),
-                    icon: Icons.verified_user_rounded,
+                    icon: _policyIcon(model.defaultExecutionPolicy),
+                    tone: _policyTone(model.defaultExecutionPolicy),
                     onPressed: () => _showPolicyPicker(context, model),
                   ),
                   OptionChipButton(
@@ -678,10 +679,12 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       title: l10n.t('settings.defaultPolicy'),
       value: model.defaultExecutionPolicy,
       values: <String, String>{
-        'review': l10n.t('policy.review'),
         'ask': l10n.t('policy.ask'),
+        'review': l10n.t('policy.review'),
         'full': l10n.t('policy.full'),
       },
+      iconForValue: _policyIcon,
+      toneForValue: _policyTone,
       onSelected: model.updateDefaultExecutionPolicy,
     );
   }
@@ -725,6 +728,8 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     required String title,
     required String value,
     required Map<String, String> values,
+    IconData Function(String value)? iconForValue,
+    Color? Function(String value)? toneForValue,
     required Future<void> Function(String value) onSelected,
   }) async {
     await showModalBottomSheet<void>(
@@ -737,6 +742,8 @@ class _DashboardComposerState extends State<_DashboardComposer> {
               (entry) => _OptionSheetTile(
                 title: entry.value,
                 selected: entry.key == value,
+                icon: iconForValue?.call(entry.key),
+                tone: toneForValue?.call(entry.key),
                 onTap: () async {
                   await onSelected(entry.key);
                   if (context.mounted) {
@@ -758,6 +765,28 @@ class _DashboardComposerState extends State<_DashboardComposer> {
         return l10n.t('policy.full');
       default:
         return l10n.t('policy.review');
+    }
+  }
+
+  IconData _policyIcon(String value) {
+    switch (value) {
+      case 'review':
+        return Icons.rate_review_outlined;
+      case 'full':
+        return Icons.shield_outlined;
+      default:
+        return Icons.pan_tool_alt_outlined;
+    }
+  }
+
+  Color? _policyTone(String value) {
+    switch (value) {
+      case 'review':
+        return Palette.softBlue;
+      case 'full':
+        return Palette.warning;
+      default:
+        return null;
     }
   }
 
@@ -826,6 +855,8 @@ class _OptionSheetTile extends StatelessWidget {
     required this.onTap,
     this.subtitle = '',
     this.enabled = true,
+    this.icon,
+    this.tone,
   });
 
   final String title;
@@ -833,9 +864,12 @@ class _OptionSheetTile extends StatelessWidget {
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
+  final IconData? icon;
+  final Color? tone;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveTone = tone ?? Palette.softBlue;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -847,17 +881,25 @@ class _OptionSheetTile extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: selected
-                  ? Palette.softBlue.appOpacity(0.10)
+                  ? effectiveTone.appOpacity(0.10)
                   : Palette.surfaceStrong,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected
-                    ? Palette.softBlue.appOpacity(0.28)
-                    : Palette.line,
+                color: selected ? effectiveTone.appOpacity(0.28) : Palette.line,
               ),
             ),
             child: Row(
               children: <Widget>[
+                if (icon != null) ...<Widget>[
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: enabled
+                        ? (tone ?? Palette.mutedInk)
+                        : Palette.faintInk,
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,7 +909,9 @@ class _OptionSheetTile extends StatelessWidget {
                         style: roundedTextStyle(
                           size: 14,
                           weight: FontWeight.w700,
-                          color: enabled ? Palette.ink : Palette.faintInk,
+                          color: enabled
+                              ? (tone ?? Palette.ink)
+                              : Palette.faintInk,
                         ),
                       ),
                       if (subtitle.isNotEmpty) ...<Widget>[
@@ -885,9 +929,9 @@ class _OptionSheetTile extends StatelessWidget {
                   ),
                 ),
                 if (selected)
-                  const Icon(
+                  Icon(
                     Icons.check_circle_rounded,
-                    color: Palette.softBlue,
+                    color: effectiveTone,
                     size: 20,
                   ),
               ],

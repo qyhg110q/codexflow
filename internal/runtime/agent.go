@@ -446,7 +446,7 @@ func (a *Agent) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID string) (SessionSummary, error) {
+func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID, policy string) (SessionSummary, error) {
 	agentID, serviceName, err := a.resolveAgentForStart(requestedAgentID)
 	if err != nil {
 		return SessionSummary{}, err
@@ -463,6 +463,7 @@ func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID 
 	if serviceName != "" {
 		params["serviceName"] = serviceName
 	}
+	applyThreadExecutionPolicy(params, policy)
 
 	var threadResp codex.ThreadStartResponse
 	if err := a.client.Call(ctx, "thread/start", params, &threadResp); err != nil {
@@ -481,7 +482,7 @@ func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID 
 		threadID := threadResp.Thread.ID
 		trimmedPrompt := strings.TrimSpace(prompt)
 		go func() {
-			if _, err := a.StartTurnWithPrompt(a.runCtx, threadID, trimmedPrompt); err != nil {
+			if _, err := a.StartTurnWithPrompt(a.runCtx, threadID, trimmedPrompt, policy); err != nil {
 				a.logger.Warn("failed to start initial turn", "threadId", threadID, "error", err)
 				a.broker.Publish("turn.start.failed", map[string]string{
 					"threadId": threadID,
@@ -639,11 +640,15 @@ func (a *Agent) ArchiveSession(ctx context.Context, threadID string) error {
 	return nil
 }
 
-func (a *Agent) StartTurnWithPrompt(ctx context.Context, threadID, prompt string) (TurnDetail, error) {
-	return a.StartTurn(ctx, threadID, []map[string]any{textInput(prompt)})
+func (a *Agent) StartTurnWithPrompt(ctx context.Context, threadID, prompt string, policy ...string) (TurnDetail, error) {
+	selectedPolicy := ""
+	if len(policy) > 0 {
+		selectedPolicy = policy[0]
+	}
+	return a.StartTurn(ctx, threadID, []map[string]any{textInput(prompt)}, selectedPolicy)
 }
 
-func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[string]any) (TurnDetail, error) {
+func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[string]any, policy string) (TurnDetail, error) {
 	if len(input) == 0 {
 		return TurnDetail{}, errors.New("turn input is required")
 	}
@@ -652,10 +657,12 @@ func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[stri
 	}
 
 	var response codex.TurnStartResponse
-	if err := a.client.Call(ctx, "turn/start", map[string]any{
+	params := map[string]any{
 		"threadId": threadID,
 		"input":    input,
-	}, &response); err != nil {
+	}
+	applyTurnExecutionPolicy(params, policy)
+	if err := a.client.Call(ctx, "turn/start", params, &response); err != nil {
 		return TurnDetail{}, err
 	}
 
@@ -1045,6 +1052,30 @@ func emptyToNil(value string) any {
 		return nil
 	}
 	return value
+}
+
+func applyThreadExecutionPolicy(params map[string]any, policy string) {
+	switch strings.TrimSpace(strings.ToLower(policy)) {
+	case "review":
+		params["approvalPolicy"] = "on-request"
+		params["approvalsReviewer"] = "auto_review"
+	case "full":
+		params["approvalPolicy"] = "never"
+		params["approvalsReviewer"] = "user"
+		params["sandbox"] = "danger-full-access"
+	}
+}
+
+func applyTurnExecutionPolicy(params map[string]any, policy string) {
+	switch strings.TrimSpace(strings.ToLower(policy)) {
+	case "review":
+		params["approvalPolicy"] = "on-request"
+		params["approvalsReviewer"] = "auto_review"
+	case "full":
+		params["approvalPolicy"] = "never"
+		params["approvalsReviewer"] = "user"
+		params["sandboxPolicy"] = map[string]any{"type": "dangerFullAccess"}
+	}
 }
 
 func decodeClaudeAnswers(result json.RawMessage) (map[string]string, error) {

@@ -251,8 +251,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: l10n.t('settings.defaultPolicy'),
                       current: model.defaultExecutionPolicy,
                       values: <String, String>{
-                        'review': l10n.t('policy.review'),
                         'ask': l10n.t('policy.ask'),
+                        'review': l10n.t('policy.review'),
                         'full': l10n.t('policy.full'),
                       },
                       onSelected: model.updateDefaultExecutionPolicy,

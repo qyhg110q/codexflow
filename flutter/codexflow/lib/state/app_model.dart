@@ -71,7 +71,7 @@ class AppModel extends ChangeNotifier {
       selectedAgentEndpointId = _loadSelectedAgentEndpointId(_prefs),
       baseUrlString = _loadBaseUrl(_prefs),
       defaultExecutionPolicy =
-          _prefs.getString(_defaultExecutionPolicyKey) ?? 'review',
+          _prefs.getString(_defaultExecutionPolicyKey) ?? 'ask',
       defaultModel = _prefs.getString(_defaultModelKey) ?? 'GPT-5.4',
       defaultReasoning = _prefs.getString(_defaultReasoningKey) ?? 'medium',
       defaultSpeed = _prefs.getString(_defaultSpeedKey) ?? 'standard',
@@ -882,6 +882,7 @@ class AppModel extends ChangeNotifier {
         cwd: cwd.trim(),
         prompt: prompt.trim(),
         agentId: agentId.trim().toLowerCase(),
+        policy: defaultExecutionPolicy,
       );
       _upsertSessionSummary(createdSession);
       connectionError = '';
@@ -999,6 +1000,7 @@ class AppModel extends ChangeNotifier {
         await _client().startTurn(
           sessionId: session.id,
           prompt: trimmed,
+          policy: defaultExecutionPolicy,
           imageUploadIds: imageUploadIds,
         );
       }

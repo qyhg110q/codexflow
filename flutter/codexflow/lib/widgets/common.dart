@@ -460,16 +460,19 @@ class OptionChipButton extends StatelessWidget {
     required this.value,
     required this.onPressed,
     this.icon,
+    this.tone,
   });
 
   final String label;
   final String value;
   final VoidCallback onPressed;
   final IconData? icon;
+  final Color? tone;
 
   @override
   Widget build(BuildContext context) {
     final text = label.trim().isEmpty ? value : '$label $value';
+    final effectiveTone = tone ?? Palette.mutedInk;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -478,14 +481,16 @@ class OptionChipButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
           decoration: BoxDecoration(
-            color: Palette.ink.appOpacity(0.055),
+            color: (tone ?? Palette.ink).appOpacity(
+              tone == null ? 0.055 : 0.10,
+            ),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (icon != null) ...<Widget>[
-                Icon(icon, size: 14, color: Palette.mutedInk),
+                Icon(icon, size: 14, color: effectiveTone),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -495,14 +500,14 @@ class OptionChipButton extends StatelessWidget {
                 style: roundedTextStyle(
                   size: 11,
                   weight: FontWeight.w700,
-                  color: Palette.mutedInk,
+                  color: effectiveTone,
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(
+              Icon(
                 Icons.keyboard_arrow_down_rounded,
                 size: 14,
-                color: Palette.faintInk,
+                color: tone?.appOpacity(0.82) ?? Palette.faintInk,
               ),
             ],
           ),
