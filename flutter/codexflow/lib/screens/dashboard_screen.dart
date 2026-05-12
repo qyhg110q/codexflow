@@ -1091,9 +1091,10 @@ class SessionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
     final capabilities = model.capabilitiesForSession(session);
-    final canPrimaryAction = (session.isEnded || !session.loaded)
-        ? model.canResumeSession(session)
-        : true;
+    final showPrimaryAction = session.isEnded || !session.loaded;
+    final showApprovalAction =
+        capabilities.supportsApprovals && session.pendingApprovals > 0;
+    final showArchiveAction = capabilities.supportsArchive && session.isEnded;
     return PanelCard(
       compact: true,
       child: Column(
@@ -1159,10 +1160,7 @@ class SessionRow extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: <Widget>[
-                      CapsuleTag(
-                        title: '托管',
-                        value: session.loaded ? '已接管' : '未接管',
-                      ),
+                      CapsuleTag(title: '状态', value: _sessionStateLabel),
                       if (session.isClaudeSession) ...<Widget>[
                         const SizedBox(width: 8),
                         CapsuleTag(
@@ -1171,20 +1169,6 @@ class SessionRow extends StatelessWidget {
                               ? 'Runtime'
                               : 'History',
                         ),
-                        if (session.loaded &&
-                            session.runtimeAttachMode.isNotEmpty) ...<Widget>[
-                          const SizedBox(width: 8),
-                          CapsuleTag(
-                            title: '接管',
-                            value:
-                                session.runtimeAttachMode == 'resumed_existing'
-                                ? '现有 Runtime'
-                                : (session.runtimeAttachMode ==
-                                          'opened_from_history'
-                                      ? '历史新开'
-                                      : '新建 Runtime'),
-                          ),
-                        ],
                       ],
                       const SizedBox(width: 8),
                       CapsuleTag(
@@ -1206,38 +1190,24 @@ class SessionRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  _compactHint,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: roundedTextStyle(
-                    size: 12,
-                    weight: FontWeight.w600,
-                    color: _hintTone,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 108,
+          if (showPrimaryAction) ...<Widget>[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: 150,
                 child: ActionButton(
                   title: _primaryButtonTitle,
                   background: _primaryBackground,
                   foreground: _primaryForeground,
                   borderColor: _primaryBorder,
-                  enabled: canPrimaryAction,
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   onPressed: () => _handlePrimaryAction(context),
                 ),
               ),
-            ],
-          ),
-          if (capabilities.supportsApprovals &&
-              session.pendingApprovals > 0) ...<Widget>[
+            ),
+          ],
+          if (showApprovalAction) ...<Widget>[
             const SizedBox(height: 10),
             ActionButton(
               title: '处理审批 (${session.pendingApprovals})',
@@ -1247,7 +1217,7 @@ class SessionRow extends StatelessWidget {
               onPressed: () => _openDetail(context),
             ),
           ],
-          if (capabilities.supportsArchive && session.isEnded) ...<Widget>[
+          if (showArchiveAction) ...<Widget>[
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: () async {
@@ -1271,84 +1241,33 @@ class SessionRow extends StatelessWidget {
   }
 
   Future<void> _handlePrimaryAction(BuildContext context) async {
-    final model = context.read<AppModel>();
-    if (session.isEnded || !session.loaded) {
-      await model.resumeSession(session);
-      return;
-    }
-    await model.endSession(session);
+    _openDetail(context);
   }
 
   String get _primaryButtonTitle {
     if (session.isEnded) {
-      return '重新接管';
+      return '查看历史';
     }
     if (!session.loaded) {
-      if (session.isClaudeSession && !session.runtimeAvailable) {
-        return '当前无 Runtime';
-      }
-      return '接管到 CodexFlow';
+      return '查看会话';
     }
-    return session.lastTurnStatus == 'inProgress' ? '中断并结束' : '结束会话';
+    return '查看会话';
   }
 
-  Color get _primaryBackground {
-    if (session.isEnded || !session.loaded) {
-      return Palette.softBlue;
-    }
-    return Palette.danger.appOpacity(0.12);
-  }
+  Color get _primaryBackground => Palette.softBlue;
 
-  Color get _primaryForeground {
-    if (session.isEnded || !session.loaded) {
-      return Colors.white;
-    }
-    return Palette.danger;
-  }
+  Color get _primaryForeground => Colors.white;
 
-  Color get _primaryBorder {
-    if (session.isEnded || !session.loaded) {
-      return Colors.transparent;
-    }
-    return Palette.danger.appOpacity(0.20);
-  }
+  Color get _primaryBorder => Colors.transparent;
 
-  String get _compactHint {
+  String get _sessionStateLabel {
     if (session.isEnded) {
-      return '历史保留，可重新接管';
-    }
-    if (session.pendingApprovals > 0) {
-      return '${session.pendingApprovals} 个审批等待处理';
-    }
-    if (session.lastTurnStatus == 'inProgress') {
-      return '运行中，可进入继续 steer';
+      return '已结束';
     }
     if (session.loaded) {
-      return '可直接发送下一轮';
+      return '进行中';
     }
-    if (session.isClaudeSession && session.runtimeAvailable) {
-      return 'Runtime 可接管';
-    }
-    if (session.isClaudeSession && session.historyAvailable) {
-      return 'History 可查看';
-    }
-    return '历史会话，可接管';
-  }
-
-  Color get _hintTone {
-    if (session.isEnded) {
-      return Palette.mutedInk;
-    }
-    if (session.pendingApprovals > 0) {
-      return Palette.warning;
-    }
-    if (session.lastTurnStatus == 'inProgress') {
-      return Palette.accent;
-    }
-    if (session.loaded) {
-      return Palette.success;
-    }
-    return Palette.softBlue;
+    return '可查看';
   }
 
   String _lastTurnStatusLabel(String status) {

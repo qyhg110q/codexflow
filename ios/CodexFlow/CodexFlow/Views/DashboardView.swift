@@ -353,18 +353,6 @@ private struct SessionRow: View {
             .buttonStyle(.plain)
             .disabled(!model.canResume(session))
             .opacity(model.canResume(session) ? 1 : 0.45)
-          } else {
-            Button {
-              Task { await model.endSession(session) }
-            } label: {
-              rowButtonLabel(
-                session.lastTurnStatus == "inProgress" ? "中断并结束" : "结束会话",
-                background: Palette.danger.opacity(0.12),
-                foreground: Palette.danger,
-                border: Palette.danger.opacity(0.20)
-              )
-            }
-            .buttonStyle(.plain)
           }
         }
 
