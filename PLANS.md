@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-12-inline-session-approvals.md`
   - `docs/exec-plans/completed/2026-05-12-agent-endpoint-settings.md`
   - `docs/exec-plans/completed/2026-05-11-context-window-usage.md`
   - `docs/exec-plans/completed/2026-05-05-android-mobile-ui-convergence.md`
@@ -34,6 +35,10 @@ Create or update an ExecPlan when any of these are true:
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-12-inline-session-approvals.md`
+  - Goal: moved Flutter approval handling into the session detail composer and removed the standalone Approval tab.
+  - Primary surfaces: Flutter `HomeShell`, `DashboardScreen`, `SessionDetailScreen`, approval card widgets.
+  - Validation: `flutter analyze`, `flutter test`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-12-agent-endpoint-settings.md`
   - Goal: replaced the single Flutter Agent address field with named on-device Agent endpoints.
   - Primary surfaces: Flutter `AppModel`, `SettingsScreen`, app refresh cadence.

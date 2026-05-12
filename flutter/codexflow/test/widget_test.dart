@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,7 +13,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('会话'), findsWidgets);
-    expect(find.text('审批'), findsWidgets);
+    expect(find.byIcon(Icons.checklist_rounded), findsNothing);
     expect(find.text('设置'), findsOneWidget);
   });
 
@@ -28,7 +29,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sessions'), findsWidgets);
-    expect(find.text('Approvals'), findsWidgets);
+    expect(find.byIcon(Icons.checklist_rounded), findsNothing);
     expect(find.text('Settings'), findsOneWidget);
   });
 }

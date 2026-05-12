@@ -7,7 +7,6 @@ import '../navigation/app_navigation.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
-import 'approval_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -1047,7 +1046,6 @@ class SessionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
-    final sessionApprovals = model.approvalsFor(session.id);
     final capabilities = model.capabilitiesForSession(session);
     final canPrimaryAction = (session.isEnded || !session.loaded)
         ? model.canResumeSession(session)
@@ -1202,17 +1200,7 @@ class SessionRow extends StatelessWidget {
               background: Palette.warning.appOpacity(0.14),
               foreground: Palette.warning,
               borderColor: Palette.warning.appOpacity(0.22),
-              onPressed: () {
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => SessionApprovalSheet(
-                    title: session.displayName,
-                    approvals: sessionApprovals,
-                  ),
-                );
-              },
+              onPressed: () => _openDetail(context),
             ),
           ],
           if (capabilities.supportsArchive && session.isEnded) ...<Widget>[

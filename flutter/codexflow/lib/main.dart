@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'i18n/app_localizations.dart';
-import 'screens/approval_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/settings_screen.dart';
 import 'navigation/app_navigation.dart';
@@ -104,11 +103,7 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   Timer? _timer;
 
-  static const _pages = <Widget>[
-    DashboardScreen(),
-    ApprovalScreen(),
-    SettingsScreen(),
-  ];
+  static const _pages = <Widget>[DashboardScreen(), SettingsScreen()];
 
   @override
   void initState() {
@@ -142,10 +137,6 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
             icon: const Icon(Icons.grid_view_rounded),
             label: l10n.t('nav.sessions'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.checklist_rounded),
-            label: l10n.t('nav.approvals'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.tune_rounded),

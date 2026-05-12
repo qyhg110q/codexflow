@@ -13,7 +13,7 @@ import '../services/api_client.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
-import 'approval_screen.dart';
+import 'approval_widgets.dart';
 
 class SessionDetailScreen extends StatefulWidget {
   const SessionDetailScreen({super.key, required this.sessionId});
@@ -366,10 +366,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                           const _LoadingBubble()
                         else
                           ..._buildMessageFlow(detail, summary),
-                        if (approvals.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 8),
-                          _ApprovalBubble(approvals: approvals),
-                        ],
                         if (activeTurn != null) ...<Widget>[
                           const SizedBox(height: 8),
                           _SystemBubble(text: l10n.t('session.agentReplying')),
@@ -401,6 +397,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             if (summary != null && !summary.isEnded && summary.loaded)
               _ChatComposer(
                 summary: summary,
+                approvals: approvals,
                 promptController: _promptController,
                 attachments: _attachments,
                 isUploadingImage: _isUploadingImage,
@@ -1393,69 +1390,68 @@ class _CompactEventBubble extends StatelessWidget {
   }
 }
 
-class _ApprovalBubble extends StatelessWidget {
-  const _ApprovalBubble({required this.approvals});
+class _ComposerApprovalPanel extends StatelessWidget {
+  const _ComposerApprovalPanel({required this.approvals});
 
   final List<PendingRequestView> approvals;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.9,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.appOpacity(0.84),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-              bottomLeft: Radius.circular(7),
-              bottomRight: Radius.circular(20),
-            ),
-            border: Border.all(color: Palette.warning.appOpacity(0.18)),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color.fromRGBO(31, 36, 41, 0.07),
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.warning.appOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Palette.warning.appOpacity(0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.verified_user_outlined,
-                    size: 17,
-                    color: Palette.warning,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '需要审批',
-                    style: roundedTextStyle(size: 14, weight: FontWeight.w700),
-                  ),
-                ],
+              const Icon(
+                Icons.verified_user_outlined,
+                size: 17,
+                color: Palette.warning,
               ),
-              const SizedBox(height: 12),
-              ...approvals.map(
-                (approval) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: ApprovalCardBody(
-                    approval: approval,
-                    showSessionLabel: false,
-                    embedded: true,
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                approvals.length == 1 ? '需要审批' : '需要审批 (${approvals.length})',
+                style: roundedTextStyle(size: 14, weight: FontWeight.w800),
+              ),
+              const Spacer(),
+              Text(
+                '当前会话',
+                style: roundedTextStyle(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: Palette.warning,
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 340),
+            child: SingleChildScrollView(
+              child: Column(
+                children: approvals
+                    .map(
+                      (approval) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: ApprovalCardBody(
+                          approval: approval,
+                          showSessionLabel: false,
+                          embedded: true,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1523,6 +1519,7 @@ class _TakeoverBubble extends StatelessWidget {
 class _ChatComposer extends StatelessWidget {
   const _ChatComposer({
     required this.summary,
+    required this.approvals,
     required this.promptController,
     required this.attachments,
     required this.isUploadingImage,
@@ -1532,6 +1529,7 @@ class _ChatComposer extends StatelessWidget {
   });
 
   final SessionSummary summary;
+  final List<PendingRequestView> approvals;
   final TextEditingController promptController;
   final List<_ComposerAttachment> attachments;
   final bool isUploadingImage;
@@ -1564,6 +1562,10 @@ class _ChatComposer extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            if (approvals.isNotEmpty) ...<Widget>[
+              _ComposerApprovalPanel(approvals: approvals),
+              const SizedBox(height: 10),
+            ],
             if (attachments.isNotEmpty) ...<Widget>[
               SizedBox(
                 height: 68,
