@@ -36,5 +36,6 @@ data/
 logs/
 codexflow-agent.exe
 codexflow-agent.pid
+codexflow-web.pid
 codexflow-state.db
 codexflow-state.db-*
