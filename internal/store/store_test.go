@@ -76,6 +76,41 @@ func TestReplaceSessionsPreservesExistingTurnsWhenIncomingThreadHasNone(t *testi
 	}
 }
 
+func TestReplaceSessionsPreservesManagedLoadedState(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.UpsertThread(codex.Thread{
+		ID:        "thread-managed",
+		CWD:       "/tmp/project",
+		CreatedAt: 100,
+		UpdatedAt: 200,
+		Status:    codex.ThreadStatus{Type: "active"},
+	})
+	sessionStore.SetSessionManaged("thread-managed", true)
+	sessionStore.SetSessionLoaded("thread-managed", true)
+
+	sessionStore.ReplaceSessions([]codex.Thread{
+		{
+			ID:        "thread-managed",
+			CWD:       "/tmp/project",
+			CreatedAt: 100,
+			UpdatedAt: 201,
+			Status:    codex.ThreadStatus{Type: "active"},
+		},
+	}, map[string]bool{})
+
+	record, ok := sessionStore.SnapshotSession("thread-managed")
+	if !ok {
+		t.Fatalf("SnapshotSession() missing thread")
+	}
+	if !record.Loaded {
+		t.Fatalf("managed session should stay loaded after refresh")
+	}
+}
+
 func TestAppendAgentMessageDeltaCreatesAndUpdatesPartialItem(t *testing.T) {
 	sessionStore, err := New(nil)
 	if err != nil {

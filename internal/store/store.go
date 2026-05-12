@@ -112,7 +112,7 @@ func (s *Store) ReplaceSessions(threads []codex.Thread, loaded map[string]bool) 
 		}
 
 		existing.Thread = mergeThread(existing.Thread, thread)
-		existing.Loaded = loaded[thread.ID]
+		existing.Loaded = loaded[thread.ID] || s.managedState[thread.ID]
 		if existing.Runtime.LatestDiffByTurn == nil {
 			existing.Runtime.LatestDiffByTurn = make(map[string]string)
 		}

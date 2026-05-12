@@ -1387,65 +1387,6 @@ class _ComposerApprovalPanel extends StatelessWidget {
   }
 }
 
-class _TakeoverBubble extends StatelessWidget {
-  const _TakeoverBubble({
-    required this.summary,
-    required this.supportsResume,
-    required this.onPressed,
-  });
-
-  final SessionSummary summary;
-  final bool supportsResume;
-  final Future<void> Function() onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final blockedReason = summary.resumeBlockedReason.trim();
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white.appOpacity(0.78),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Palette.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              summary.isEnded ? '会话已结束' : '历史会话',
-              style: roundedTextStyle(size: 15, weight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              blockedReason.isEmpty ? '接管后可以继续发送下一条消息。' : blockedReason,
-              style: roundedTextStyle(
-                size: 12,
-                weight: FontWeight.w500,
-                color: Palette.mutedInk,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ActionButton(
-              title: summary.isClaudeSession ? '接管到 CodexFlow' : '重新接管',
-              background: Palette.ink,
-              foreground: Colors.white,
-              icon: Icons.play_arrow_rounded,
-              enabled: supportsResume,
-              onPressed: () async {
-                await onPressed();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ChatComposer extends StatelessWidget {
   const _ChatComposer({
     required this.summary,
