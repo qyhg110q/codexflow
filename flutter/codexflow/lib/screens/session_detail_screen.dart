@@ -102,11 +102,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       await _refreshSessionPage();
       return;
     }
-    if (summary.loaded) {
-      _tick += 1;
-      if (_tick % 2 == 0) {
-        await _refreshSessionPage();
-      }
+    _tick += 1;
+    if (_tick % 2 == 0) {
+      await _refreshSessionPage();
     }
   }
 
@@ -297,9 +295,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           )
         : model.capabilitiesForSession(summary);
     final supportsApprovals = capabilities.supportsApprovals;
-    final supportsResume = summary == null
-        ? capabilities.supportsResume
-        : model.canResumeSession(summary);
     final approvals = supportsApprovals
         ? _sessionApprovals(model)
         : <PendingRequestView>[];
@@ -357,11 +352,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
                       children: <Widget>[
-                        if (summary != null)
-                          _ThreadHeader(summary: summary)
-                        else
+                        if (summary == null) ...<Widget>[
                           _SystemBubble(text: l10n.t('session.loadingInfo')),
-                        const SizedBox(height: 14),
+                          const SizedBox(height: 14),
+                        ],
                         if (detail == null)
                           const _LoadingBubble()
                         else
@@ -369,18 +363,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         if (activeTurn != null) ...<Widget>[
                           const SizedBox(height: 8),
                           _SystemBubble(text: l10n.t('session.agentReplying')),
-                        ],
-                        if (summary != null &&
-                            (summary.isEnded || !summary.loaded)) ...<Widget>[
-                          const SizedBox(height: 8),
-                          _TakeoverBubble(
-                            summary: summary,
-                            supportsResume: supportsResume,
-                            onPressed: () async {
-                              await model.resumeSession(summary);
-                              await _refreshSessionPage(forceBottom: true);
-                            },
-                          ),
                         ],
                       ],
                     ),
@@ -394,7 +376,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 ],
               ),
             ),
-            if (summary != null && !summary.isEnded && summary.loaded)
+            if (summary != null && !summary.isEnded)
               _ChatComposer(
                 summary: summary,
                 approvals: approvals,
@@ -480,10 +462,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
 
     if (messages.isEmpty) {
-      final empty = summary?.loaded == true
-          ? l10n.t('session.noMessagesManaged')
-          : l10n.t('session.noMessagesHistory');
-      messages.add(_SystemBubble(text: empty));
+      messages.add(_SystemBubble(text: l10n.t('session.noMessagesManaged')));
     }
 
     return messages;
@@ -1074,55 +1053,6 @@ class _NoticeBanner extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ThreadHeader extends StatelessWidget {
-  const _ThreadHeader({required this.summary});
-
-  final SessionSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        AgentMark(agentId: summary.agentId),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                summary.displayName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: roundedTextStyle(size: 16, weight: FontWeight.w700),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                _subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: roundedTextStyle(
-                  size: 12,
-                  weight: FontWeight.w500,
-                  color: Palette.mutedInk,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String get _subtitle {
-    final agent = summary.isClaudeSession
-        ? (summary.runtimeAvailable ? 'Claude Runtime' : 'Claude History')
-        : 'Codex';
-    final branch = summary.branch.isEmpty ? '未识别分支' : summary.branch;
-    return '$agent · $branch';
   }
 }
 
