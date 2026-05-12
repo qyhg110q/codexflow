@@ -95,13 +95,10 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		})
 	case http.MethodPost:
 		var request struct {
-			Action    string `json:"action"`
-			CWD       string `json:"cwd"`
-			Prompt    string `json:"prompt"`
-			Agent     string `json:"agent"`
-			SessionID string `json:"sessionId"`
-			ID        string `json:"id"`
-			TurnID    string `json:"turnId"`
+			Action string `json:"action"`
+			CWD    string `json:"cwd"`
+			Prompt string `json:"prompt"`
+			Agent  string `json:"agent"`
 		}
 		if !decodeJSON(w, r, &request) {
 			return
@@ -134,21 +131,6 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			session, err := s.agent.StartSession(ctx, cwd, prompt, request.Agent)
-			if err != nil {
-				writeError(w, http.StatusBadGateway, err)
-				return
-			}
-			writeJSON(w, http.StatusCreated, session)
-		case "fork", "branch":
-			sessionID := strings.TrimSpace(request.SessionID)
-			if sessionID == "" {
-				sessionID = strings.TrimSpace(request.ID)
-			}
-			if sessionID == "" {
-				writeErrorMessage(w, http.StatusBadRequest, "session id is required")
-				return
-			}
-			session, err := s.agent.ForkSession(ctx, sessionID, request.TurnID)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, err)
 				return

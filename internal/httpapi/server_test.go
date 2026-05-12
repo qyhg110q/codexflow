@@ -43,28 +43,6 @@ func TestSessionForkEndpointRoutesToAgent(t *testing.T) {
 	}
 }
 
-func TestSessionsActionForkRoutesToAgent(t *testing.T) {
-	agent := &fakeAgent{
-		forkResult: runtime.SessionSummary{ID: "forked-thread", LifecycleStage: "managed"},
-	}
-	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", strings.NewReader(`{"action":"fork","sessionId":"source-thread","turnId":"turn-3"}`))
-	recorder := httptest.NewRecorder()
-
-	server.Handler().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d; body = %s", recorder.Code, http.StatusCreated, recorder.Body.String())
-	}
-	if agent.forkThreadID != "source-thread" {
-		t.Fatalf("fork thread id = %q, want %q", agent.forkThreadID, "source-thread")
-	}
-	if agent.forkTurnID != "turn-3" {
-		t.Fatalf("fork turn id = %q, want %q", agent.forkTurnID, "turn-3")
-	}
-}
-
 type fakeAgent struct {
 	forkThreadID string
 	forkTurnID   string
