@@ -624,15 +624,20 @@ String normalizedDisplayText(String raw) {
 }
 
 class MarkdownBodyBlock extends StatelessWidget {
-  const MarkdownBodyBlock({super.key, required this.raw});
+  const MarkdownBodyBlock({
+    super.key,
+    required this.raw,
+    this.selectable = false,
+  });
 
   final String raw;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
     return MarkdownBody(
       data: raw,
-      selectable: false,
+      selectable: selectable,
       shrinkWrap: true,
       softLineBreak: true,
       styleSheet: MarkdownStyleSheet(

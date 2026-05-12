@@ -1179,7 +1179,7 @@ class _ChatBubble extends StatelessWidget {
                 ],
         ),
         child: isUser
-            ? Text(
+            ? SelectableText(
                 text,
                 style: roundedTextStyle(
                   size: 14,
@@ -1188,7 +1188,7 @@ class _ChatBubble extends StatelessWidget {
                   height: 1.55,
                 ),
               )
-            : MarkdownBodyBlock(raw: text),
+            : MarkdownBodyBlock(raw: text, selectable: true),
       ),
     );
 

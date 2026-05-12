@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-12-session-text-selection.md`
   - `docs/exec-plans/completed/2026-05-12-inline-session-approvals.md`
   - `docs/exec-plans/completed/2026-05-12-agent-endpoint-settings.md`
   - `docs/exec-plans/completed/2026-05-11-context-window-usage.md`
@@ -35,6 +36,10 @@ Create or update an ExecPlan when any of these are true:
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-12-session-text-selection.md`
+  - Goal: enabled native text selection for Flutter session detail chat content.
+  - Primary surfaces: Flutter `SessionDetailScreen` chat bubbles and shared `MarkdownBodyBlock`.
+  - Validation: `flutter analyze`, `flutter test`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-12-inline-session-approvals.md`
   - Goal: moved Flutter approval handling into the session detail composer and removed the standalone Approval tab.
   - Primary surfaces: Flutter `HomeShell`, `DashboardScreen`, `SessionDetailScreen`, approval card widgets.
