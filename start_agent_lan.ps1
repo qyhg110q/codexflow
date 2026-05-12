@@ -10,6 +10,57 @@ $stdoutLog = Join-Path $logDir "agent.stdout.log"
 $stderrLog = Join-Path $logDir "agent.stderr.log"
 $codexPath = "C:\Users\yehuaige\AppData\Roaming\npm\codex.cmd"
 
+function Get-NewestSourceWriteTime {
+    $sourceRoots = @(
+        (Join-Path $repoRoot "cmd"),
+        (Join-Path $repoRoot "internal"),
+        (Join-Path $repoRoot "go.mod"),
+        (Join-Path $repoRoot "go.sum")
+    )
+
+    $items = foreach ($sourceRoot in $sourceRoots) {
+        if (Test-Path $sourceRoot -PathType Container) {
+            Get-ChildItem -Path $sourceRoot -Recurse -File -Include *.go -ErrorAction SilentlyContinue
+        } elseif (Test-Path $sourceRoot -PathType Leaf) {
+            Get-Item $sourceRoot
+        }
+    }
+
+    return ($items | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
+}
+
+function Test-AgentBinaryIsStale {
+    if (-not (Test-Path $exePath)) {
+        return $true
+    }
+
+    $newestSourceWriteTime = Get-NewestSourceWriteTime
+    if (-not $newestSourceWriteTime) {
+        return $false
+    }
+
+    $exeWriteTime = (Get-Item $exePath).LastWriteTimeUtc
+    return $exeWriteTime -lt $newestSourceWriteTime
+}
+
+function Build-AgentBinary {
+    $goCommand = Get-Command go -ErrorAction SilentlyContinue
+    if (-not $goCommand) {
+        throw "Go is required to build codexflow-agent.exe, but 'go' was not found in PATH"
+    }
+
+    Write-Host "Building codexflow-agent.exe from current source..."
+    Push-Location $repoRoot
+    try {
+        & $goCommand.Path build -o $exePath ./cmd/codexflow-agent
+        if ($LASTEXITCODE -ne 0) {
+            throw "go build failed with exit code $LASTEXITCODE"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Get-LanIpAddress {
     $connectedInterfaces = Get-NetIPInterface -AddressFamily IPv4 -ErrorAction SilentlyContinue |
         Where-Object { $_.ConnectionState -eq "Connected" }
@@ -53,7 +104,7 @@ function Get-LanIpAddress {
 }
 
 if (-not (Test-Path $exePath)) {
-    throw "Missing agent binary: $exePath"
+    Write-Host "Missing agent binary: $exePath"
 }
 
 if (-not (Test-Path $codexPath)) {
@@ -68,14 +119,24 @@ if (Test-Path $pidFile) {
     if ($existingPid) {
         $existingProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
         if ($existingProcess) {
-            $lanIp = Get-LanIpAddress
-            Write-Host "codexflow-agent is already running. PID=$existingPid"
-            Write-Host "LAN URL: http://$lanIp`:4318"
-            Write-Host "Health check: http://$lanIp`:4318/healthz"
-            exit 0
+            if (Test-AgentBinaryIsStale) {
+                Write-Host "Existing codexflow-agent is using an older binary. Restarting with current source..."
+                Stop-Process -Id $existingPid -Force
+                Start-Sleep -Seconds 1
+            } else {
+                $lanIp = Get-LanIpAddress
+                Write-Host "codexflow-agent is already running. PID=$existingPid"
+                Write-Host "LAN URL: http://$lanIp`:4318"
+                Write-Host "Health check: http://$lanIp`:4318/healthz"
+                exit 0
+            }
         }
     }
     Remove-Item $pidFile -Force
+}
+
+if (Test-AgentBinaryIsStale) {
+    Build-AgentBinary
 }
 
 $env:CODEXFLOW_LISTEN_ADDR = "0.0.0.0:4318"

@@ -31,5 +31,10 @@ coverage.out
 
 # CodexFlow local runtime state
 .codexflow/
+.tooling/
+data/
+logs/
+codexflow-agent.exe
+codexflow-agent.pid
 codexflow-state.db
 codexflow-state.db-*
