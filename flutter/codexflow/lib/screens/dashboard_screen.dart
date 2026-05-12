@@ -1091,7 +1091,6 @@ class SessionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
     final capabilities = model.capabilitiesForSession(session);
-    final showPrimaryAction = session.isEnded || !session.loaded;
     final showApprovalAction =
         capabilities.supportsApprovals && session.pendingApprovals > 0;
     final showArchiveAction = capabilities.supportsArchive && session.isEnded;
@@ -1190,23 +1189,6 @@ class SessionRow extends StatelessWidget {
               ],
             ),
           ),
-          if (showPrimaryAction) ...<Widget>[
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: SizedBox(
-                width: 150,
-                child: ActionButton(
-                  title: _primaryButtonTitle,
-                  background: _primaryBackground,
-                  foreground: _primaryForeground,
-                  borderColor: _primaryBorder,
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  onPressed: () => _handlePrimaryAction(context),
-                ),
-              ),
-            ),
-          ],
           if (showApprovalAction) ...<Widget>[
             const SizedBox(height: 10),
             ActionButton(
@@ -1239,26 +1221,6 @@ class SessionRow extends StatelessWidget {
   void _openDetail(BuildContext context) {
     openSessionChatPage(session.id);
   }
-
-  Future<void> _handlePrimaryAction(BuildContext context) async {
-    _openDetail(context);
-  }
-
-  String get _primaryButtonTitle {
-    if (session.isEnded) {
-      return '查看历史';
-    }
-    if (!session.loaded) {
-      return '查看会话';
-    }
-    return '查看会话';
-  }
-
-  Color get _primaryBackground => Palette.softBlue;
-
-  Color get _primaryForeground => Colors.white;
-
-  Color get _primaryBorder => Colors.transparent;
 
   String get _sessionStateLabel {
     if (session.isEnded) {
