@@ -119,11 +119,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			cwd := normalizeCWD(request.CWD)
 			prompt := strings.TrimSpace(request.Prompt)
 
-			if cwd == "" {
-				writeErrorMessage(w, http.StatusBadRequest, "working directory is required")
-				return
-			}
-			if !filepath.IsAbs(cwd) {
+			if cwd != "" && !filepath.IsAbs(cwd) {
 				writeErrorMessage(w, http.StatusBadRequest, "working directory must be an absolute path")
 				return
 			}

@@ -43,10 +43,35 @@ func TestSessionForkEndpointRoutesToAgent(t *testing.T) {
 	}
 }
 
+func TestSessionStartAllowsEmptyCWD(t *testing.T) {
+	agent := &fakeAgent{
+		startResult: runtime.SessionSummary{ID: "thread-no-cwd", LifecycleStage: "managed"},
+	}
+	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", strings.NewReader(`{"action":"start","cwd":"","prompt":"hello","agent":"codex","policy":"ask"}`))
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body = %s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+	if agent.startCWD != "" {
+		t.Fatalf("start cwd = %q, want empty", agent.startCWD)
+	}
+	if agent.startPrompt != "hello" {
+		t.Fatalf("start prompt = %q, want %q", agent.startPrompt, "hello")
+	}
+}
+
 type fakeAgent struct {
 	forkThreadID string
 	forkTurnID   string
 	forkResult   runtime.SessionSummary
+	startCWD     string
+	startPrompt  string
+	startResult  runtime.SessionSummary
 }
 
 func (a *fakeAgent) Dashboard() runtime.Dashboard {
@@ -61,8 +86,10 @@ func (a *fakeAgent) Refresh(context.Context) error {
 	return nil
 }
 
-func (a *fakeAgent) StartSession(context.Context, string, string, string, string) (runtime.SessionSummary, error) {
-	return runtime.SessionSummary{}, nil
+func (a *fakeAgent) StartSession(_ context.Context, cwd, prompt, _ string, _ string) (runtime.SessionSummary, error) {
+	a.startCWD = cwd
+	a.startPrompt = prompt
+	return a.startResult, nil
 }
 
 func (a *fakeAgent) ForkSession(_ context.Context, threadID, turnID string) (runtime.SessionSummary, error) {

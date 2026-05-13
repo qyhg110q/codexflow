@@ -421,28 +421,41 @@ class _DashboardComposer extends StatefulWidget {
   State<_DashboardComposer> createState() => _DashboardComposerState();
 }
 
+enum _ProjectPickerMode { recent, custom, none }
+
 class _DashboardComposerState extends State<_DashboardComposer> {
   late final TextEditingController _cwdController;
   late final TextEditingController _promptController;
+  _ProjectPickerMode _projectMode = _ProjectPickerMode.none;
+  String _selectedWorkspaceCwd = '';
   bool _isCreating = false;
   String _submitError = '';
 
   @override
   void initState() {
     super.initState();
-    _cwdController = TextEditingController(text: _initialCwd());
+    final initialCwd = _initialCwd();
+    _projectMode = initialCwd.isEmpty
+        ? _ProjectPickerMode.none
+        : _ProjectPickerMode.recent;
+    _selectedWorkspaceCwd = initialCwd;
+    _cwdController = TextEditingController();
     _promptController = TextEditingController();
   }
 
   @override
   void didUpdateWidget(covariant _DashboardComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_cwdController.text.trim().isNotEmpty) {
+    if (_projectMode != _ProjectPickerMode.none ||
+        _selectedWorkspaceCwd.isNotEmpty) {
       return;
     }
     final cwd = _initialCwd();
     if (cwd.isNotEmpty) {
-      _cwdController.text = cwd;
+      setState(() {
+        _projectMode = _ProjectPickerMode.recent;
+        _selectedWorkspaceCwd = cwd;
+      });
     }
   }
 
@@ -463,9 +476,12 @@ class _DashboardComposerState extends State<_DashboardComposer> {
         _promptController,
       ]),
       builder: (context, _) {
-        final cwd = _cwdController.text.trim();
+        final cwd = _effectiveCwd;
         final prompt = _promptController.text.trim();
-        final canCreate = cwd.isNotEmpty && prompt.isNotEmpty && !_isCreating;
+        final canCreate =
+            prompt.isNotEmpty &&
+            (_projectMode != _ProjectPickerMode.custom || cwd.isNotEmpty) &&
+            !_isCreating;
         return PanelCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,11 +494,23 @@ class _DashboardComposerState extends State<_DashboardComposer> {
                 autocapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 10),
-              CodexTextField(
-                controller: _cwdController,
-                hintText: l10n.t('dashboard.cwdHint'),
-                monospaced: true,
+              OptionChipButton(
+                label: '项目',
+                value: _projectPickerLabel,
+                icon: _projectPickerIcon,
+                tone: _projectMode == _ProjectPickerMode.none
+                    ? Palette.mutedInk
+                    : Palette.softBlue,
+                onPressed: () => _showProjectPicker(context),
               ),
+              if (_projectMode == _ProjectPickerMode.custom) ...<Widget>[
+                const SizedBox(height: 10),
+                CodexTextField(
+                  controller: _cwdController,
+                  hintText: l10n.t('dashboard.cwdHint'),
+                  monospaced: true,
+                ),
+              ],
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -566,9 +594,11 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   Future<void> _createSession(BuildContext context) async {
     final model = context.read<AppModel>();
     final l10n = AppLocalizations.of(model.languageCode);
-    final cwd = _cwdController.text.trim();
+    final cwd = _effectiveCwd;
     final prompt = _promptController.text.trim();
-    if (cwd.isEmpty || prompt.isEmpty || _isCreating) {
+    if (prompt.isEmpty ||
+        (_projectMode == _ProjectPickerMode.custom && cwd.isEmpty) ||
+        _isCreating) {
       return;
     }
     FocusScope.of(context).unfocus();
@@ -606,6 +636,114 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       }
     }
     return '';
+  }
+
+  String get _effectiveCwd {
+    switch (_projectMode) {
+      case _ProjectPickerMode.recent:
+        return _selectedWorkspaceCwd.trim();
+      case _ProjectPickerMode.custom:
+        return _cwdController.text.trim();
+      case _ProjectPickerMode.none:
+        return '';
+    }
+  }
+
+  String get _projectPickerLabel {
+    switch (_projectMode) {
+      case _ProjectPickerMode.recent:
+        return _workspaceTitle(_selectedWorkspaceCwd);
+      case _ProjectPickerMode.custom:
+        final cwd = _cwdController.text.trim();
+        return cwd.isEmpty ? '添加新项目' : _workspaceTitle(cwd);
+      case _ProjectPickerMode.none:
+        return '不使用项目';
+    }
+  }
+
+  IconData get _projectPickerIcon {
+    switch (_projectMode) {
+      case _ProjectPickerMode.recent:
+      case _ProjectPickerMode.custom:
+        return Icons.folder_open_rounded;
+      case _ProjectPickerMode.none:
+        return Icons.chat_bubble_outline_rounded;
+    }
+  }
+
+  List<String> _recentWorkspaceCwds() {
+    final seen = <String>{};
+    final result = <String>[];
+    final sessions = widget.model.dashboard.sessions;
+    for (final session in sessions) {
+      final cwd = session.cwd.trim();
+      if (cwd.isEmpty) {
+        continue;
+      }
+      final key = _workspaceKey(cwd);
+      if (seen.add(key)) {
+        result.add(cwd);
+      }
+    }
+    return result;
+  }
+
+  Future<void> _showProjectPicker(BuildContext context) async {
+    final recentCwds = _recentWorkspaceCwds();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _OptionSheet(
+        title: '选择项目',
+        children: <Widget>[
+          ...recentCwds.map(
+            (cwd) => _OptionSheetTile(
+              title: _workspaceTitle(cwd),
+              subtitle: cwd,
+              icon: Icons.folder_open_rounded,
+              selected:
+                  _projectMode == _ProjectPickerMode.recent &&
+                  _workspaceKey(_selectedWorkspaceCwd) == _workspaceKey(cwd),
+              onTap: () {
+                setState(() {
+                  _projectMode = _ProjectPickerMode.recent;
+                  _selectedWorkspaceCwd = cwd;
+                  _submitError = '';
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+          _OptionSheetTile(
+            title: '添加新项目',
+            subtitle: '手动输入工作区路径',
+            icon: Icons.create_new_folder_outlined,
+            selected: _projectMode == _ProjectPickerMode.custom,
+            onTap: () {
+              setState(() {
+                _projectMode = _ProjectPickerMode.custom;
+                _submitError = '';
+              });
+              Navigator.of(context).pop();
+            },
+          ),
+          _OptionSheetTile(
+            title: '不使用项目',
+            subtitle: '创建无工作区的对话会话',
+            icon: Icons.chat_bubble_outline_rounded,
+            selected: _projectMode == _ProjectPickerMode.none,
+            onTap: () {
+              setState(() {
+                _projectMode = _ProjectPickerMode.none;
+                _selectedWorkspaceCwd = '';
+                _submitError = '';
+              });
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showAgentPicker(BuildContext context, AppModel model) async {
@@ -998,7 +1136,11 @@ class _WorkspaceSessionGroupData {
   final String title;
   final String cwd;
   final List<SessionSummary> sessions;
+
+  bool get isConversationGroup => key == _conversationWorkspaceKey;
 }
+
+const String _conversationWorkspaceKey = '__conversation_without_workspace__';
 
 List<_WorkspaceSessionGroupData> _workspaceSessionGroups(
   List<SessionSummary> sessions,
@@ -1038,7 +1180,7 @@ List<_WorkspaceSessionGroupData> _workspaceSessionGroups(
 String _workspaceKey(String cwd) {
   final trimmed = cwd.trim();
   if (trimmed.isEmpty) {
-    return '__unknown_workspace__';
+    return _conversationWorkspaceKey;
   }
   return trimmed
       .replaceAll('\\', '/')
@@ -1049,7 +1191,7 @@ String _workspaceKey(String cwd) {
 String _workspaceTitle(String cwd) {
   final trimmed = cwd.trim();
   if (trimmed.isEmpty) {
-    return '未识别工作区';
+    return '对话';
   }
   final normalized = trimmed
       .replaceAll('\\', '/')
@@ -1057,7 +1199,7 @@ String _workspaceTitle(String cwd) {
   final parts = normalized.split('/').where((part) => part.trim().isNotEmpty);
   final last = parts.isEmpty ? normalized : parts.last.trim();
   if (last.isEmpty) {
-    return '未识别工作区';
+    return '对话';
   }
   final runes = last.runes.toList();
   final first = String.fromCharCode(runes.first).toUpperCase();
@@ -1079,6 +1221,10 @@ class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
+    final icon = group.isConversationGroup
+        ? Icons.chat_bubble_outline_rounded
+        : Icons.folder_open_rounded;
+    final tone = group.isConversationGroup ? Palette.accent : Palette.softBlue;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: PanelCard(
@@ -1099,14 +1245,10 @@ class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
                       height: 34,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Palette.softBlue.appOpacity(0.12),
+                        color: tone.appOpacity(0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
-                        Icons.folder_open_rounded,
-                        size: 18,
-                        color: Palette.softBlue,
-                      ),
+                      child: Icon(icon, size: 18, color: tone),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
