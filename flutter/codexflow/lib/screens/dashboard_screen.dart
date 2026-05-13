@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../i18n/app_localizations.dart';
@@ -415,6 +418,39 @@ class _ComposerSendButton extends StatelessWidget {
   }
 }
 
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Palette.ink.appOpacity(0.055),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 22, color: color),
+        ),
+      ),
+    );
+  }
+}
+
 class _DashboardComposer extends StatefulWidget {
   const _DashboardComposer({required this.model});
 
@@ -429,9 +465,13 @@ enum _ProjectPickerMode { recent, custom, none }
 class _DashboardComposerState extends State<_DashboardComposer> {
   late final TextEditingController _cwdController;
   late final TextEditingController _promptController;
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<_DashboardComposerAttachment> _attachments =
+      <_DashboardComposerAttachment>[];
   _ProjectPickerMode _projectMode = _ProjectPickerMode.none;
   String _selectedWorkspaceCwd = '';
   bool _isCreating = false;
+  bool _isUploadingImage = false;
   String _submitError = '';
 
   @override
@@ -482,9 +522,10 @@ class _DashboardComposerState extends State<_DashboardComposer> {
         final cwd = _effectiveCwd;
         final prompt = _promptController.text.trim();
         final canCreate =
-            prompt.isNotEmpty &&
+            (prompt.isNotEmpty || _attachments.isNotEmpty) &&
             (_projectMode != _ProjectPickerMode.custom || cwd.isNotEmpty) &&
-            !_isCreating;
+            !_isCreating &&
+            !_isUploadingImage;
         return PanelCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,6 +537,30 @@ class _DashboardComposerState extends State<_DashboardComposer> {
                 maxLines: 6,
                 autocapitalization: TextCapitalization.sentences,
               ),
+              if (_attachments.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 68,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _attachments.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final attachment = _attachments[index];
+                      return _DashboardAttachmentPreview(
+                        attachment: attachment,
+                        onRemove: () {
+                          setState(() {
+                            _attachments.removeWhere(
+                              (item) => item.id == attachment.id,
+                            );
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               OptionChipButton(
                 label: '项目',
@@ -562,6 +627,19 @@ class _DashboardComposerState extends State<_DashboardComposer> {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
+                  _RoundIconButton(
+                    icon: _isUploadingImage
+                        ? Icons.hourglass_empty_rounded
+                        : Icons.add_rounded,
+                    color: Palette.ink,
+                    onPressed: _isUploadingImage || _isCreating
+                        ? null
+                        : () async {
+                            FocusScope.of(context).unfocus();
+                            await _pickAndUploadImage();
+                          },
+                  ),
+                  const SizedBox(width: 8),
                   IconButton.filledTonal(
                     tooltip: l10n.t('dashboard.switchLocalMode'),
                     style: IconButton.styleFrom(
@@ -599,9 +677,10 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     final l10n = AppLocalizations.of(model.languageCode);
     final cwd = _effectiveCwd;
     final prompt = _promptController.text.trim();
-    if (prompt.isEmpty ||
+    if ((prompt.isEmpty && _attachments.isEmpty) ||
         (_projectMode == _ProjectPickerMode.custom && cwd.isEmpty) ||
-        _isCreating) {
+        _isCreating ||
+        _isUploadingImage) {
       return;
     }
     FocusScope.of(context).unfocus();
@@ -613,6 +692,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       cwd: cwd,
       prompt: prompt,
       agentId: model.selectedStartAgentId,
+      imageUploadIds: _attachments.map((item) => item.uploadId).toList(),
     );
     if (!mounted) {
       return;
@@ -627,7 +707,57 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     });
     if (createdSession != null) {
       _promptController.clear();
+      _attachments.clear();
       openSessionChatPage(createdSession.id);
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    if (_isUploadingImage) {
+      return;
+    }
+
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (image == null) {
+      return;
+    }
+
+    final bytes = await image.readAsBytes();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+    try {
+      final model = context.read<AppModel>();
+      final uploaded = await model.uploadImage(
+        bytes: bytes,
+        fileName: image.name.isEmpty ? 'attachment.jpg' : image.name,
+      );
+      if (!mounted || uploaded == null) {
+        return;
+      }
+      setState(() {
+        _attachments.add(
+          _DashboardComposerAttachment(
+            id: '${DateTime.now().microsecondsSinceEpoch}-${uploaded.id}',
+            uploadId: uploaded.id,
+            bytes: bytes,
+          ),
+        );
+        _submitError = '';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
     }
   }
 
@@ -1051,6 +1181,63 @@ class _OptionSheetTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashboardAttachmentPreview extends StatelessWidget {
+  const _DashboardAttachmentPreview({
+    required this.attachment,
+    required this.onRemove,
+  });
+
+  final _DashboardComposerAttachment attachment;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.memory(
+            attachment.bytes,
+            width: 68,
+            height: 68,
+            fit: BoxFit.cover,
+          ),
+        ),
+        Positioned(
+          right: -6,
+          top: -6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Palette.ink,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardComposerAttachment {
+  _DashboardComposerAttachment({
+    required this.id,
+    required this.uploadId,
+    required this.bytes,
+  });
+
+  final String id;
+  final String uploadId;
+  final Uint8List bytes;
 }
 
 class _AgentSwitchButton extends StatelessWidget {

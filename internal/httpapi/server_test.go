@@ -60,8 +60,11 @@ func TestSessionStartAllowsEmptyCWD(t *testing.T) {
 	if agent.startCWD != "" {
 		t.Fatalf("start cwd = %q, want empty", agent.startCWD)
 	}
-	if agent.startPrompt != "hello" {
-		t.Fatalf("start prompt = %q, want %q", agent.startPrompt, "hello")
+	if len(agent.startInput) != 1 {
+		t.Fatalf("start input count = %d, want 1", len(agent.startInput))
+	}
+	if agent.startInput[0]["text"] != "hello" {
+		t.Fatalf("start input text = %q, want %q", agent.startInput[0]["text"], "hello")
 	}
 }
 
@@ -70,7 +73,7 @@ type fakeAgent struct {
 	forkTurnID   string
 	forkResult   runtime.SessionSummary
 	startCWD     string
-	startPrompt  string
+	startInput   []map[string]any
 	startResult  runtime.SessionSummary
 }
 
@@ -86,9 +89,9 @@ func (a *fakeAgent) Refresh(context.Context) error {
 	return nil
 }
 
-func (a *fakeAgent) StartSession(_ context.Context, cwd, prompt, _ string, _ string) (runtime.SessionSummary, error) {
+func (a *fakeAgent) StartSession(_ context.Context, cwd string, input []map[string]any, _ string, _ string) (runtime.SessionSummary, error) {
 	a.startCWD = cwd
-	a.startPrompt = prompt
+	a.startInput = input
 	return a.startResult, nil
 }
 

@@ -446,13 +446,16 @@ func (a *Agent) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID, policy string) (SessionSummary, error) {
+func (a *Agent) StartSession(ctx context.Context, cwd string, input []map[string]any, requestedAgentID, policy string) (SessionSummary, error) {
+	if len(input) == 0 {
+		return SessionSummary{}, errors.New("initial turn input is required")
+	}
 	agentID, serviceName, err := a.resolveAgentForStart(requestedAgentID)
 	if err != nil {
 		return SessionSummary{}, err
 	}
 	if agentID == "claude" {
-		return a.startClaudeSession(ctx, cwd, prompt)
+		return a.startClaudeSession(ctx, cwd, flattenClaudeInput(input))
 	}
 
 	params := map[string]any{
@@ -478,19 +481,16 @@ func (a *Agent) StartSession(ctx context.Context, cwd, prompt, requestedAgentID,
 	record, _ := a.store.SnapshotSession(threadResp.Thread.ID)
 	summary := toSessionSummary(record, 0)
 	a.broker.Publish("session.created", summary)
-	if strings.TrimSpace(prompt) != "" {
-		threadID := threadResp.Thread.ID
-		trimmedPrompt := strings.TrimSpace(prompt)
-		go func() {
-			if _, err := a.StartTurnWithPrompt(a.runCtx, threadID, trimmedPrompt, policy); err != nil {
-				a.logger.Warn("failed to start initial turn", "threadId", threadID, "error", err)
-				a.broker.Publish("turn.start.failed", map[string]string{
-					"threadId": threadID,
-					"error":    err.Error(),
-				})
-			}
-		}()
-	}
+	threadID := threadResp.Thread.ID
+	go func() {
+		if _, err := a.StartTurn(a.runCtx, threadID, input, policy); err != nil {
+			a.logger.Warn("failed to start initial turn", "threadId", threadID, "error", err)
+			a.broker.Publish("turn.start.failed", map[string]string{
+				"threadId": threadID,
+				"error":    err.Error(),
+			})
+		}
+	}()
 	return summary, nil
 }
 

@@ -26,7 +26,7 @@ type agentBackend interface {
 	Dashboard() runtime.Dashboard
 	ListSessions() []runtime.SessionSummary
 	Refresh(context.Context) error
-	StartSession(context.Context, string, string, string, string) (runtime.SessionSummary, error)
+	StartSession(context.Context, string, []map[string]any, string, string) (runtime.SessionSummary, error)
 	ForkSession(context.Context, string, string) (runtime.SessionSummary, error)
 	SessionDetail(context.Context, string) (runtime.SessionDetail, error)
 	ContextWindowUsage(string) (runtime.ContextWindowUsage, error)
@@ -100,6 +100,11 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			Prompt string `json:"prompt"`
 			Agent  string `json:"agent"`
 			Policy string `json:"policy"`
+			Inputs []struct {
+				Type     string `json:"type"`
+				Text     string `json:"text"`
+				UploadID string `json:"uploadId"`
+			} `json:"inputs"`
 		}
 		if !decodeJSON(w, r, &request) {
 			return
@@ -117,17 +122,17 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 		case "start":
 			cwd := normalizeCWD(request.CWD)
-			prompt := strings.TrimSpace(request.Prompt)
 
 			if cwd != "" && !filepath.IsAbs(cwd) {
 				writeErrorMessage(w, http.StatusBadRequest, "working directory must be an absolute path")
 				return
 			}
-			if prompt == "" {
-				writeErrorMessage(w, http.StatusBadRequest, "first prompt is required to materialize a managed session")
+			input, err := s.buildTurnInput(request.Prompt, request.Inputs)
+			if err != nil {
+				writeErrorMessage(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			session, err := s.agent.StartSession(ctx, cwd, prompt, request.Agent, request.Policy)
+			session, err := s.agent.StartSession(ctx, cwd, input, request.Agent, request.Policy)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, err)
 				return

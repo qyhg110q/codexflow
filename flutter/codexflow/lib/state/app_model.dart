@@ -1029,6 +1029,7 @@ class AppModel extends ChangeNotifier {
     required String cwd,
     required String prompt,
     required String agentId,
+    List<String> imageUploadIds = const <String>[],
   }) async {
     try {
       final createdSession = await _client().startSession(
@@ -1036,6 +1037,7 @@ class AppModel extends ChangeNotifier {
         prompt: prompt.trim(),
         agentId: agentId.trim().toLowerCase(),
         policy: defaultExecutionPolicy,
+        imageUploadIds: imageUploadIds,
       );
       _upsertSessionSummary(createdSession);
       connectionError = '';

@@ -100,6 +100,7 @@ class ApiClient {
     required String prompt,
     required String agentId,
     required String policy,
+    List<String> imageUploadIds = const <String>[],
   }) async {
     final json = await _decodeMap(
       '/api/v1/sessions',
@@ -108,6 +109,7 @@ class ApiClient {
         'action': 'start',
         'cwd': cwd,
         'prompt': prompt,
+        'inputs': _buildInputs(prompt: prompt, imageUploadIds: imageUploadIds),
         'agent': agentId,
         'policy': policy,
       },
