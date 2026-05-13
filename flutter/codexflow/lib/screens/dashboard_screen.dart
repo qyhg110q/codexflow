@@ -917,7 +917,9 @@ class _OptionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
     return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
       decoration: const BoxDecoration(
         color: Palette.canvas,
@@ -925,28 +927,31 @@ class _OptionSheet extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Center(
-              child: Container(
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Palette.line,
-                  borderRadius: BorderRadius.circular(999),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Palette.line,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: roundedTextStyle(size: 17, weight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            ...children,
-          ],
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: roundedTextStyle(size: 17, weight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              ...children,
+            ],
+          ),
         ),
       ),
     );
