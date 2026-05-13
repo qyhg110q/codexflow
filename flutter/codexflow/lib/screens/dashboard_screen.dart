@@ -26,8 +26,8 @@ class DashboardScreen extends StatelessWidget {
     final filteredApprovals = model.dashboard.approvals
         .where((approval) => allowedSessionIds.contains(approval.threadId))
         .toList();
-    final loadedCount = filteredSessions
-        .where((session) => session.loaded)
+    final endedCount = filteredSessions
+        .where((session) => session.isEnded)
         .length;
     final activeCount = filteredSessions
         .where((session) => session.status == 'active' && !session.isEnded)
@@ -63,7 +63,7 @@ class DashboardScreen extends StatelessWidget {
               _DashboardHero(
                 model: model,
                 totalCount: filteredSessions.length,
-                loadedCount: loadedCount,
+                endedCount: endedCount,
                 activeCount: activeCount,
                 pendingApprovalCount: pendingApprovalCount,
               ),
@@ -185,14 +185,14 @@ class _DashboardHero extends StatelessWidget {
   const _DashboardHero({
     required this.model,
     required this.totalCount,
-    required this.loadedCount,
+    required this.endedCount,
     required this.activeCount,
     required this.pendingApprovalCount,
   });
 
   final AppModel model;
   final int totalCount;
-  final int loadedCount;
+  final int endedCount;
   final int activeCount;
   final int pendingApprovalCount;
 
@@ -233,23 +233,6 @@ class _DashboardHero extends StatelessWidget {
             l10n.t('dashboard.heroTitle'),
             style: roundedTextStyle(size: 25, weight: FontWeight.w700),
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.t('dashboard.heroSubtitle', {
-              'agent': _agentName(model),
-              'mode': model.localMode
-                  ? l10n.t('dashboard.localMode')
-                  : l10n.t('dashboard.remoteMode'),
-              'model': model.defaultModel,
-              'reasoning': _reasoningLabel(model.defaultReasoning, l10n),
-            }),
-            style: roundedTextStyle(
-              size: 13,
-              weight: FontWeight.w500,
-              color: Palette.mutedInk,
-              height: 1.45,
-            ),
-          ),
           const SizedBox(height: 16),
           Row(
             children: <Widget>[
@@ -263,9 +246,9 @@ class _DashboardHero extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _InlineMetric(
-                  label: l10n.t('dashboard.managed'),
-                  value: '$loadedCount',
-                  tone: Palette.accent,
+                  label: l10n.t('dashboard.ended'),
+                  value: '$endedCount',
+                  tone: Palette.mutedInk,
                 ),
               ),
               const SizedBox(width: 8),
@@ -293,11 +276,6 @@ class _DashboardHero extends StatelessWidget {
     );
   }
 
-  String _agentName(AppModel model) {
-    final selected = model.selectedAgentOption;
-    return selected?.name ?? model.selectedStartAgentId;
-  }
-
   String _portLabel(String listenAddr) {
     final match = RegExp(r':(\d+)(?:/)?$').firstMatch(listenAddr.trim());
     if (match != null) {
@@ -309,19 +287,6 @@ class _DashboardHero extends StatelessWidget {
   String _todayLabel() {
     final now = DateTime.now();
     return '${now.month}/${now.day}';
-  }
-
-  String _reasoningLabel(String value, AppLocalizations l10n) {
-    switch (value) {
-      case 'low':
-        return l10n.t('reasoning.lowFull');
-      case 'high':
-        return l10n.t('reasoning.highFull');
-      case 'xhigh':
-        return l10n.t('reasoning.xhighFull');
-      default:
-        return l10n.t('reasoning.mediumFull');
-    }
   }
 }
 
