@@ -34,6 +34,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   StreamSubscription<AgentEvent>? _eventSubscription;
   int _tick = 0;
   bool _isUploadingImage = false;
+  bool _isSubmittingPrompt = false;
   bool _isAtBottom = true;
   bool _showJumpToLatest = false;
 
@@ -383,6 +384,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 promptController: _promptController,
                 attachments: _attachments,
                 isUploadingImage: _isUploadingImage,
+                isSubmittingPrompt: _isSubmittingPrompt,
                 onPickImage: _pickAndUploadImage,
                 onRemoveAttachment: (String id) {
                   setState(() {
@@ -390,19 +392,33 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   });
                 },
                 onSubmit: () async {
-                  final sent = await model.submitPrompt(
-                    session: summary,
-                    prompt: _promptController.text.trim(),
-                    imageUploadIds: _attachments
-                        .map((item) => item.uploadId)
-                        .toList(),
-                  );
-                  if (sent) {
-                    _promptController.clear();
-                    setState(() {
-                      _attachments.clear();
-                    });
-                    await _refreshSessionPage(forceBottom: true);
+                  if (_isSubmittingPrompt) {
+                    return;
+                  }
+                  setState(() {
+                    _isSubmittingPrompt = true;
+                  });
+                  try {
+                    final sent = await model.submitPrompt(
+                      session: summary,
+                      prompt: _promptController.text.trim(),
+                      imageUploadIds: _attachments
+                          .map((item) => item.uploadId)
+                          .toList(),
+                    );
+                    if (sent) {
+                      _promptController.clear();
+                      setState(() {
+                        _attachments.clear();
+                      });
+                      await _refreshSessionPage(forceBottom: true);
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isSubmittingPrompt = false;
+                      });
+                    }
                   }
                 },
               ),
@@ -1394,6 +1410,7 @@ class _ChatComposer extends StatelessWidget {
     required this.promptController,
     required this.attachments,
     required this.isUploadingImage,
+    required this.isSubmittingPrompt,
     required this.onPickImage,
     required this.onRemoveAttachment,
     required this.onSubmit,
@@ -1404,6 +1421,7 @@ class _ChatComposer extends StatelessWidget {
   final TextEditingController promptController;
   final List<_ComposerAttachment> attachments;
   final bool isUploadingImage;
+  final bool isSubmittingPrompt;
   final Future<void> Function() onPickImage;
   final void Function(String id) onRemoveAttachment;
   final Future<void> Function() onSubmit;
@@ -1525,7 +1543,9 @@ class _ChatComposer extends StatelessWidget {
                     final canSubmit =
                         value.text.trim().isNotEmpty || attachments.isNotEmpty;
                     return _SendButton(
-                      enabled: canSubmit && !isUploadingImage,
+                      enabled:
+                          canSubmit && !isUploadingImage && !isSubmittingPrompt,
+                      loading: isSubmittingPrompt,
                       onPressed: () async {
                         FocusScope.of(context).unfocus();
                         await onSubmit();
@@ -1705,13 +1725,19 @@ class _RoundIconButton extends StatelessWidget {
 }
 
 class _SendButton extends StatelessWidget {
-  const _SendButton({required this.enabled, required this.onPressed});
+  const _SendButton({
+    required this.enabled,
+    required this.loading,
+    required this.onPressed,
+  });
 
   final bool enabled;
+  final bool loading;
   final Future<void> Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final active = enabled || loading;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1722,13 +1748,27 @@ class _SendButton extends StatelessWidget {
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: enabled ? Palette.ink : Palette.ink.appOpacity(0.12),
+            color: active ? Palette.ink : Palette.ink.appOpacity(0.12),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.arrow_upward_rounded,
-            size: 22,
-            color: Colors.white,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: loading
+                ? const SizedBox(
+                    key: ValueKey<String>('sending'),
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(
+                    Icons.arrow_upward_rounded,
+                    key: const ValueKey<String>('send'),
+                    size: 22,
+                    color: enabled ? Colors.white : Palette.mutedInk,
+                  ),
           ),
         ),
       ),
