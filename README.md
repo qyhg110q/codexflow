@@ -142,6 +142,8 @@ Client Apps
 
 - Claude 会话分层：把 `历史导入` 和 `可接管 runtime` 正式拆开
 - 新建 / 接管 / 结束会话统一进入明确的生命周期阶段
+- 审批中心已经接入自动审批策略
+- SSE 事件流已经打通，客户端支持实时刷新
 - Agent 三端打包、Flutter Web / Android 打包、iOS `unsigned ipa` 导出流程验证
 
 当前还没有做的部分：
@@ -150,8 +152,6 @@ Client Apps
 - 登录与设备配对
 - APNs 推送
 - macOS 菜单栏 Launcher
-- 自动审批策略引擎
-- 完整的 SSE 实时刷新体验
 
 ## 快速开始
 
@@ -635,8 +635,7 @@ assets                    README 截图资源
 
 下一阶段计划：
 
-- SSE 实时刷新
 - macOS Launcher
 - 局域网外的安全 relay
 - 推送通知
-- 自动审批策略
+- 登录与设备配对
