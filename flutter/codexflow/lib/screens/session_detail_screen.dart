@@ -403,18 +403,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    _ContextUsageIndicator(summary: summary),
-                    const SizedBox(width: 8),
-                    StatusPill(
-                      status: summary.status,
-                      waiting: summary.hasWaitingState,
-                      ended: summary.isEnded,
-                    ),
-                  ],
-                ),
+                child: _ContextUsageIndicator(summary: summary),
               ),
             ),
         ],
