@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Completed.
 
 ## Goal
 
@@ -36,7 +36,10 @@ Adjust the Flutter session home so new Codex sessions can start with a recent wo
 
 - `go test ./internal/httpapi`
 - `flutter analyze`
+- `.\build_android_apk.ps1`
 
 ## Outcomes & Retrospective
 
-- Pending.
+- New session creation now defaults to the most recent workspace, supports picking prior workspaces, supports manual project entry, and can create Codex no-workspace sessions.
+- Empty-cwd sessions now appear under a top-level `对话` card.
+- Session rows no longer show agent marks or terminal lifecycle labels; only active replies render a lightweight spinner.

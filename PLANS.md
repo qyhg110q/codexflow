@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-13-session-home-project-picker.md`
   - `docs/exec-plans/completed/2026-05-12-session-text-selection.md`
   - `docs/exec-plans/completed/2026-05-12-inline-session-approvals.md`
   - `docs/exec-plans/completed/2026-05-12-agent-endpoint-settings.md`
@@ -36,6 +37,10 @@ Create or update an ExecPlan when any of these are true:
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-13-session-home-project-picker.md`
+  - Goal: added recent workspace / new project / no-project session start options and simplified session row activity display.
+  - Primary surfaces: Flutter `DashboardScreen`, Go Agent session start validation.
+  - Validation: `go test ./internal/httpapi`, `flutter analyze`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-12-session-text-selection.md`
   - Goal: enabled native text selection for Flutter session detail chat content.
   - Primary surfaces: Flutter `SessionDetailScreen` chat bubbles and shared `MarkdownBodyBlock`.
