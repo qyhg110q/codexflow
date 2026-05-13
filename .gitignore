@@ -34,6 +34,7 @@ coverage.out
 .tooling/
 data/
 logs/
+artifacts/release/
 codexflow-agent.exe
 codexflow-agent.pid
 codexflow-web.pid

@@ -104,9 +104,28 @@ Client Apps
 
 ## 发布产物
 
-- Android 安装包已经发布在 GitHub Releases
-- Web 构建产物也已经发布在 GitHub Releases
-- 如果你只是想直接试用，可以优先从 GitHub Releases 下载对应版本
+- GitHub Release 推荐包含这几个资产：
+- `codexflow-windows-host-vX.Y.Z.zip`
+- `codexflow-android-vX.Y.Z.apk`
+- `codexflow-web-vX.Y.Z.zip`
+- `SHA256SUMS.txt`
+
+推荐下载顺序：
+
+1. 大多数用户先下载 `codexflow-windows-host-vX.Y.Z.zip`
+2. Android 用户再下载 `codexflow-android-vX.Y.Z.apk`
+3. 只有在你要自建静态托管或非 Windows 宿主时，再下载 `codexflow-web-vX.Y.Z.zip`
+
+关于 APK：建议和 Windows host bundle 放在同一个 GitHub Release 里一起发布。
+
+原因很简单：
+
+- 它们属于同一套终端产品，而不是独立项目
+- GitHub Release 本来就适合多资产分发
+- 用户只需要记住一个 release 页面
+- AI 代理在自动部署时也更容易做资产选择
+
+当前不建议把 iOS 安装包作为同层级 release 资产公开发布，因为 iOS 还有签名和分发链路问题，和 APK 的直接下载安装不是一个复杂度
 
 ## 当前状态
 
@@ -136,6 +155,78 @@ Client Apps
 
 ## 快速开始
 
+### 路径 A：直接使用 GitHub Release
+
+这是最适合最终用户的方式。
+
+#### Windows 宿主机
+
+下载并解压：
+
+- `codexflow-windows-host-vX.Y.Z.zip`
+
+解压后目录里应至少有：
+
+- `codexflow-agent.exe`
+- `start_codexflow.ps1`
+- `stop_codexflow.ps1`
+- `web/`
+
+宿主机前置要求：
+
+- Windows
+- 已安装并登录 `codex` CLI
+- `python` 在 `PATH` 里可用
+- 如果要跨局域网外访问，安装并登录 `Tailscale`
+
+启动：
+
+```powershell
+.\start_codexflow.ps1
+```
+
+脚本会：
+
+- 启动本地 Agent
+- 启动 bundled Flutter Web
+- 自动尝试配置 Tailscale Serve
+- 打印可以直接填进 CodexFlow `Settings > Agent Address` 的地址
+
+典型输出：
+
+```text
+LAN:       http://192.168.31.147:4318
+Tailscale: https://your-machine.your-tailnet.ts.net
+```
+
+停止：
+
+```powershell
+.\stop_codexflow.ps1
+```
+
+#### Android 客户端
+
+下载：
+
+- `codexflow-android-vX.Y.Z.apk`
+
+然后在 Android 设备上安装 APK，并在设置页填入上面脚本打印的地址。
+
+#### Web 资产
+
+如果你只是通过 Windows host bundle 使用 CodexFlow，其实不需要单独下载 Web 资产。
+
+`codexflow-web-vX.Y.Z.zip` 的用途是：
+
+- 你想把 Web UI 放到自己的静态站点
+- 你不用 Windows bundle，而是自己托管 Agent 和静态站点
+- 你想让 AI 代理在服务器上自动部署一份 Web 前端
+
+### 路径 B：从源码构建
+
+适合开发者和要二次改造的人。
+
 ### 1. 环境要求
 
 - Windows / Linux / macOS（运行 Agent）
@@ -145,7 +236,7 @@ Client Apps
 - Xcode（仅在运行 iOS App 时需要）
 - Flutter（仅在运行 Flutter App 时需要）
 
-### 2. 启动 Go Agent
+### 2. 启动 Go Agent（源码模式）
 
 在仓库根目录执行：
 
@@ -153,13 +244,13 @@ Client Apps
 go run ./cmd/codexflow-agent
 ```
 
-如果你是给最终用户直接使用，Windows 下更推荐运行：
+如果你是在源码树里直接给自己用，Windows 下也可以运行：
 
 ```powershell
 .\start_agent_user.ps1
 ```
 
-这个脚本会：
+这个脚本适合开发态使用，它会：
 
 - 自动启动或重编译 `codexflow-agent.exe`
 - 启动 Flutter Web 静态站点
@@ -210,12 +301,12 @@ go build -o codexflow-agent ./cmd/codexflow-agent
 codexflow-agent.exe
 ```
 
-### 3. Agent 多端使用方式
+### 3. 推荐部署方式
 
 推荐的部署方式是：
 
 1. 在安装了 `codex` CLI 的那台主机上运行 `Go Agent`
-2. 让 Agent 暴露一个本机或局域网可访问的 HTTP 地址
+2. 让 Agent 暴露一个本机、局域网，或者 tailnet 内可访问的 HTTP 地址
 3. 用 iOS / Android / Web / 桌面客户端去连接这个地址
 
 同机使用：
@@ -225,7 +316,7 @@ Agent: 127.0.0.1:4318
 Client: http://127.0.0.1:4318
 ```
 
-跨设备使用：
+局域网跨设备使用：
 
 ```bash
 CODEXFLOW_LISTEN_ADDR=0.0.0.0:4318 go run ./cmd/codexflow-agent
@@ -237,7 +328,7 @@ CODEXFLOW_LISTEN_ADDR=0.0.0.0:4318 go run ./cmd/codexflow-agent
 http://192.168.1.10:4318
 ```
 
-#### 通过 Tailscale Service 远程访问（可选）
+#### 通过 Tailscale Service 远程访问
 
 如果你希望在局域网外用 Android / iOS / Web 客户端访问 CodexFlow，可以把 Agent 和 Web 客户端只绑定到本机回环地址，再通过 Tailscale Service 暴露一个 tailnet 内部 HTTPS 入口。这样不需要把 CodexFlow 直接暴露到公网，也不需要在手机上记端口。
 
@@ -250,7 +341,7 @@ https://codexflow.<tailnet>.ts.net/
   /        -> http://127.0.0.1:8088
 ```
 
-先启动 Agent：
+源码模式下，先启动 Agent：
 
 ```bash
 CODEXFLOW_LISTEN_ADDR=127.0.0.1:4318 go run ./cmd/codexflow-agent
@@ -263,18 +354,18 @@ cd flutter/codexflow/build/web
 python3 -m http.server 8088 --bind 127.0.0.1
 ```
 
-然后配置 Tailscale Service。下面假设 service 名称是 `svc:codexflow`：
+然后配置 Tailscale Serve：
 
 ```bash
-tailscale serve --service svc:codexflow --bg --https 443 http://127.0.0.1:8088
-tailscale serve --service svc:codexflow --bg --https 443 --set-path /api http://127.0.0.1:4318/api
-tailscale serve --service svc:codexflow --bg --https 443 --set-path /healthz http://127.0.0.1:4318/healthz
+tailscale serve --bg --https 443 http://127.0.0.1:8088
+tailscale serve --bg --https 443 --set-path /api http://127.0.0.1:4318/api
+tailscale serve --bg --https 443 --set-path /healthz http://127.0.0.1:4318/healthz
 ```
 
-如果 Tailscale 提示需要管理员批准，需要先在 Tailscale 控制台批准这台机器作为 `svc:codexflow` 的 service proxy。批准后，在客户端里填写：
+如果 Tailscale 提示需要管理员批准，需要先在 Tailscale 控制台批准这台机器的 serve 配置。批准后，在客户端里填写：
 
 ```text
-https://codexflow.<tailnet>.ts.net
+https://your-machine.your-tailnet.ts.net
 ```
 
 安全提醒：当前 CodexFlow Agent 还没有内置登录和设备配对机制。远程访问时建议只使用 tailnet 内部的 Tailscale Service，并配合 Tailscale ACL 限制可访问设备；不要用 Funnel 或公网反向代理直接公开 CodexFlow。
@@ -288,7 +379,37 @@ curl http://127.0.0.1:4318/api/v1/dashboard
 
 如果正常，你会拿到健康检查结果和真实会话列表。
 
-### 5. 运行 iOS App
+### 5. 在客户端里配置 Agent 地址
+
+推荐填写规则：
+
+- 同机调试：`http://127.0.0.1:4318`
+- 局域网设备：`http://<宿主机局域网IP>:4318`
+- Tailscale 设备：`https://<machine>.<tailnet>.ts.net`
+
+补充说明：
+
+- `Flutter Web / Chrome`：如果页面和 Agent 在同一台机器上，通常可直接使用 `http://127.0.0.1:4318`
+- `Android 模拟器 / 真机`：不要填 `127.0.0.1`，要填宿主机局域网 IP 或 Tailscale 地址
+- 当前 Agent 已加入浏览器跨域支持，Flutter Web 可以直接访问本地 Agent
+- 如果 Android release APK 报 `ClientException with SocketException: Failed host lookup`，请确认 `android/app/src/main/AndroidManifest.xml` 声明了 `android.permission.INTERNET`
+
+### 6. 给 AI 代理的部署提示词
+
+如果你希望让 AI 直接帮你部署 release，可以把下面这段作为起点：
+
+```text
+请帮我部署 CodexFlow。目标是：
+1. 使用 GitHub Release 里的 Windows host bundle
+2. 在这台 Windows 机器上启动 codexflow-agent 和 bundled web
+3. 如果机器安装了 Tailscale，就顺手配置 tailnet 内访问
+4. 最后告诉我两个可直接填进 CodexFlow Settings > Agent Address 的地址：
+   - LAN 地址
+   - Tailscale 地址
+5. 如果缺少 codex、python 或 tailscale，请明确指出缺什么
+```
+
+### 7. 运行 iOS App
 
 用 Xcode 打开：
 
@@ -298,7 +419,7 @@ ios/CodexFlow/CodexFlow.xcodeproj
 
 然后运行 `CodexFlow` target。
 
-### 6. 运行 Flutter App
+### 8. 运行 Flutter App
 
 Flutter 项目目录：
 
@@ -321,9 +442,9 @@ flutter run -d chrome
 flutter run -d emulator-5554
 ```
 
-### 7. 运行 Web 版本
+### 9. 运行 Web 版本
 
-先构建 Web（已上传到release，可以直接下载使用）：
+先构建 Web：
 
 ```bash
 cd flutter/codexflow
@@ -356,32 +477,55 @@ http://127.0.0.1:8080
 - `Nginx / Caddy / Apache`
 - 任意静态站点托管服务
 
-### 8. 在 App 里配置 Agent 地址
+### 10. 构建 release 资产
 
-如果是同一台 Mac 上跑模拟器：
+仓库内已经提供了 release 打包脚本：
+
+```powershell
+.\build_release_assets.ps1
+```
+
+它会产出：
+
+- Windows host bundle zip
+- Web 静态资源 zip
+- Android APK
+- `SHA256SUMS.txt`
+- `release-notes.md`
+
+产物目录：
 
 ```text
-http://127.0.0.1:4318
+artifacts/release/vX.Y.Z/
 ```
 
-如果是 `iPhone 真机`、`Android 模拟器`、`Android 真机`，或者你要给其他设备访问，建议让 Agent 监听局域网：
+如果你只想重打包，不想重新构建 APK 或 Web，可以用：
 
-```bash
-CODEXFLOW_LISTEN_ADDR=0.0.0.0:4318 go run ./cmd/codexflow-agent
+```powershell
+.\build_release_assets.ps1 -SkipApk
+.\build_release_assets.ps1 -SkipWeb
 ```
 
-然后在 App 的 `Settings` 页面填入你 Mac 的局域网 IP，例如：
+### 11. 发布到 GitHub Release
 
-```text
-http://192.168.1.10:4318
+仓库内还提供了发布脚本：
+
+```powershell
+.\publish_github_release.ps1 -Tag vX.Y.Z
 ```
 
-补充说明：
+这个脚本会：
 
-- `Flutter Web / Chrome`：如果页面和 Agent 在同一台 Mac 上，通常可直接使用 `http://127.0.0.1:4318`
-- `Android 模拟器 / 真机`：不要填 `127.0.0.1`，要填你 Mac 的局域网 IP
-- 当前 Agent 已加入浏览器跨域支持，Flutter Web 可以直接访问本地 Agent
-- 如果 Android release APK 报 `ClientException with SocketException: Failed host lookup`，请确认 `android/app/src/main/AndroidManifest.xml` 声明了 `android.permission.INTERNET`。Debug/Profile manifest 中的权限不会自动覆盖 release 包。
+- 读取 `artifacts/release/vX.Y.Z/`
+- 用 `release-notes.md` 作为 release body
+- 创建 GitHub Release
+- 上传 zip、apk、校验文件等资产
+
+可用的凭据来源：
+
+- `GITHUB_TOKEN`
+- `GH_TOKEN`
+- Git Credential Manager 中已经可用的 GitHub 凭据
 
 ## 基本使用方式
 
