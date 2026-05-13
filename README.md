@@ -153,6 +153,26 @@ Client Apps
 go run ./cmd/codexflow-agent
 ```
 
+如果你是给最终用户直接使用，Windows 下更推荐运行：
+
+```powershell
+.\start_agent_user.ps1
+```
+
+这个脚本会：
+
+- 自动启动或重编译 `codexflow-agent.exe`
+- 启动 Flutter Web 静态站点
+- 自动配置 Tailscale Serve（如果本机已安装并登录 Tailscale）
+- 直接打印可以填进 CodexFlow `Settings > Agent 地址` 的地址
+
+典型输出会包含：
+
+```text
+LAN:       http://192.168.31.147:4318
+Tailscale: https://laptop-g84e45ma.tailfa6379.ts.net
+```
+
 默认监听地址：
 
 ```text
