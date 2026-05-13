@@ -77,7 +77,10 @@ if (-not $token) {
 }
 
 $notesPath = Join-Path $AssetDirectory "release-notes.md"
-$notes = if (Test-Path $notesPath) { Get-Content -Raw $notesPath } else { "" }
+$notes = ""
+if (Test-Path $notesPath) {
+    $notes = [string](Get-Content -LiteralPath $notesPath -Raw)
+}
 $releaseName = if ($ReleaseName) { $ReleaseName } else { "CodexFlow $Tag" }
 
 $createBody = @{
@@ -87,7 +90,7 @@ $createBody = @{
     body = $notes
     draft = [bool]$Draft
     prerelease = [bool]$PreRelease
-} | ConvertTo-Json
+} | ConvertTo-Json -Depth 5
 
 $release = Invoke-GitHubApi -Method POST -Uri ("https://api.github.com/repos/{0}/releases" -f $Repository) -Token $token -Body $createBody
 
