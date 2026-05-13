@@ -435,6 +435,8 @@ class _DashboardComposerState extends State<_DashboardComposer> {
       <_DashboardComposerAttachment>[];
   _ProjectPickerMode _projectMode = _ProjectPickerMode.none;
   String _selectedWorkspaceCwd = '';
+  late String _lastAgentEndpointId;
+  late String _lastStartAgentId;
   bool _isCreating = false;
   bool _isUploadingImage = false;
   String _submitError = '';
@@ -442,11 +444,9 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   @override
   void initState() {
     super.initState();
-    final initialCwd = _initialCwd();
-    _projectMode = initialCwd.isEmpty
-        ? _ProjectPickerMode.none
-        : _ProjectPickerMode.recent;
-    _selectedWorkspaceCwd = initialCwd;
+    _lastAgentEndpointId = widget.model.selectedAgentEndpointId;
+    _lastStartAgentId = widget.model.selectedStartAgentId;
+    _resetWorkspaceSelection();
     _cwdController = TextEditingController();
     _promptController = TextEditingController();
   }
@@ -454,13 +454,42 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   @override
   void didUpdateWidget(covariant _DashboardComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_projectMode != _ProjectPickerMode.none ||
-        _selectedWorkspaceCwd.isNotEmpty) {
+    final agentEndpointChanged =
+        _lastAgentEndpointId != widget.model.selectedAgentEndpointId;
+    final startAgentChanged =
+        _lastStartAgentId != widget.model.selectedStartAgentId;
+    _lastAgentEndpointId = widget.model.selectedAgentEndpointId;
+    _lastStartAgentId = widget.model.selectedStartAgentId;
+
+    if (agentEndpointChanged || startAgentChanged) {
+      setState(_resetWorkspaceSelection);
       return;
     }
+
+    if (_projectMode == _ProjectPickerMode.custom) {
+      return;
+    }
+
+    final recentCwds = _recentWorkspaceCwds();
+    final hasSelectedRecentWorkspace =
+        _projectMode == _ProjectPickerMode.recent &&
+        recentCwds.any(
+          (cwd) => _workspaceKey(cwd) == _workspaceKey(_selectedWorkspaceCwd),
+        );
+    if (hasSelectedRecentWorkspace ||
+        (_projectMode == _ProjectPickerMode.none &&
+            _selectedWorkspaceCwd.isEmpty)) {
+      return;
+    }
+
     final cwd = _initialCwd();
-    if (cwd.isNotEmpty) {
+    if (cwd != _selectedWorkspaceCwd || _projectMode != _ProjectPickerMode.none) {
       setState(() {
+        if (cwd.isEmpty) {
+          _projectMode = _ProjectPickerMode.none;
+          _selectedWorkspaceCwd = '';
+          return;
+        }
         _projectMode = _ProjectPickerMode.recent;
         _selectedWorkspaceCwd = cwd;
       });
@@ -727,13 +756,24 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   }
 
   String _initialCwd() {
-    final sessions = widget.model.dashboard.sessions;
+    final sessions = widget.model.dashboard.sessions.where(
+      (session) => session.agentId == widget.model.selectedStartAgentId,
+    );
     for (final session in sessions) {
       if (session.cwd.trim().isNotEmpty) {
         return session.cwd.trim();
       }
     }
     return '';
+  }
+
+  void _resetWorkspaceSelection() {
+    final initialCwd = _initialCwd();
+    _projectMode = initialCwd.isEmpty
+        ? _ProjectPickerMode.none
+        : _ProjectPickerMode.recent;
+    _selectedWorkspaceCwd = initialCwd;
+    _submitError = '';
   }
 
   String get _effectiveCwd {
@@ -772,7 +812,9 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   List<String> _recentWorkspaceCwds() {
     final seen = <String>{};
     final result = <String>[];
-    final sessions = widget.model.dashboard.sessions;
+    final sessions = widget.model.dashboard.sessions.where(
+      (session) => session.agentId == widget.model.selectedStartAgentId,
+    );
     for (final session in sessions) {
       final cwd = session.cwd.trim();
       if (cwd.isEmpty) {
