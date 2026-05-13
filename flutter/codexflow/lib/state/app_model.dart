@@ -1187,19 +1187,21 @@ class AppModel extends ChangeNotifier {
     }
   }
 
-  Future<void> interrupt(SessionSummary session) async {
+  Future<bool> interrupt(SessionSummary session) async {
     if (session.lastTurnId.isEmpty) {
-      return;
+      return false;
     }
     try {
       await _client().interruptTurn(
         sessionId: session.id,
         turnId: session.lastTurnId,
       );
-      await refreshDashboard();
+      unawaited(_refreshSubmittedSession(session.id));
+      return true;
     } catch (error) {
       connectionError = error.toString();
       notifyListeners();
+      return false;
     }
   }
 

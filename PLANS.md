@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-14-session-detail-interrupt-button.md`
   - `docs/exec-plans/completed/2026-05-13-release-packaging-and-deployment-docs.md`
   - `docs/exec-plans/completed/2026-05-13-session-detail-scroll-follow.md`
   - `docs/exec-plans/completed/2026-05-13-session-home-lazy-load.md`
@@ -45,6 +46,10 @@ Create or update an ExecPlan when any of these are true:
   - Goal: prepared GitHub Release assets, added reproducible packaging/publishing scripts, and rewrote deployment guidance for end-user LAN and Tailscale usage.
   - Primary surfaces: release packaging scripts, Windows release launcher templates, README deployment/release docs.
   - Validation: `go test ./internal/httpapi`, `.\build_android_apk.ps1`, `.\build_release_assets.ps1`, and packaged bundle smoke checks for local/Tailscale `/healthz`.
+- `docs/exec-plans/completed/2026-05-14-session-detail-interrupt-button.md`
+  - Goal: made the session detail composer switch between stop and send while a turn is running, with stop waiting on the interrupt API just like send waits on the send API.
+  - Primary surfaces: Flutter `SessionDetailScreen`, `AppModel` interrupt flow, and interrupt waiting regression coverage.
+  - Validation: `flutter analyze`, targeted `flutter test`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-13-session-detail-scroll-follow.md`
   - Goal: changed Flutter session detail chat so automatic bottom following pauses when the user scrolls up to inspect history and resumes when they return to the bottom.
   - Primary surfaces: Flutter `SessionDetailScreen`.

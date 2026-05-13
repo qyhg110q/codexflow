@@ -35,6 +35,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   int _tick = 0;
   bool _isUploadingImage = false;
   bool _isSubmittingPrompt = false;
+  bool _isInterruptingTurn = false;
   bool _isAtBottom = true;
   bool _stickToBottom = true;
   bool _showJumpToLatest = false;
@@ -402,9 +403,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           if (summary != null)
             Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: _ContextUsageIndicator(summary: summary),
-              ),
+              child: Center(child: _ContextUsageIndicator(summary: summary)),
             ),
         ],
       ),
@@ -504,6 +503,28 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     }
                   }
                 },
+                onInterrupt: () async {
+                  if (_isInterruptingTurn) {
+                    return;
+                  }
+                  setState(() {
+                    _isInterruptingTurn = true;
+                  });
+                  try {
+                    final interrupted = await model.interrupt(summary);
+                    if (interrupted && mounted) {
+                      unawaited(_refreshSessionPage(keepBottomIfPinned: true));
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isInterruptingTurn = false;
+                      });
+                    }
+                  }
+                },
+                isInterruptingTurn: _isInterruptingTurn,
+                supportsInterruptTurn: capabilities.supportsInterruptTurn,
               ),
           ],
         ),
@@ -1494,9 +1515,12 @@ class _ChatComposer extends StatelessWidget {
     required this.attachments,
     required this.isUploadingImage,
     required this.isSubmittingPrompt,
+    required this.isInterruptingTurn,
+    required this.supportsInterruptTurn,
     required this.onPickImage,
     required this.onRemoveAttachment,
     required this.onSubmit,
+    required this.onInterrupt,
   });
 
   final SessionSummary summary;
@@ -1505,9 +1529,12 @@ class _ChatComposer extends StatelessWidget {
   final List<_ComposerAttachment> attachments;
   final bool isUploadingImage;
   final bool isSubmittingPrompt;
+  final bool isInterruptingTurn;
+  final bool supportsInterruptTurn;
   final Future<void> Function() onPickImage;
   final void Function(String id) onRemoveAttachment;
   final Future<void> Function() onSubmit;
+  final Future<void> Function() onInterrupt;
 
   @override
   Widget build(BuildContext context) {
@@ -1623,14 +1650,31 @@ class _ChatComposer extends StatelessWidget {
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: promptController,
                   builder: (context, value, _) {
-                    final canSubmit =
+                    final hasDraft =
                         value.text.trim().isNotEmpty || attachments.isNotEmpty;
-                    return _SendButton(
-                      enabled:
-                          canSubmit && !isUploadingImage && !isSubmittingPrompt,
-                      loading: isSubmittingPrompt,
+                    final showStopButton =
+                        activeTurn && !hasDraft && supportsInterruptTurn;
+                    return _ComposerPrimaryButton(
+                      mode: showStopButton
+                          ? _ComposerPrimaryAction.stop
+                          : _ComposerPrimaryAction.send,
+                      enabled: showStopButton
+                          ? !isUploadingImage &&
+                                !isSubmittingPrompt &&
+                                !isInterruptingTurn
+                          : hasDraft &&
+                                !isUploadingImage &&
+                                !isSubmittingPrompt &&
+                                !isInterruptingTurn,
+                      loading: showStopButton
+                          ? isInterruptingTurn
+                          : isSubmittingPrompt,
                       onPressed: () async {
                         FocusScope.of(context).unfocus();
+                        if (showStopButton) {
+                          await onInterrupt();
+                          return;
+                        }
                         await onSubmit();
                       },
                     );
@@ -1807,13 +1851,17 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-class _SendButton extends StatelessWidget {
-  const _SendButton({
+enum _ComposerPrimaryAction { send, stop }
+
+class _ComposerPrimaryButton extends StatelessWidget {
+  const _ComposerPrimaryButton({
+    required this.mode,
     required this.enabled,
     required this.loading,
     required this.onPressed,
   });
 
+  final _ComposerPrimaryAction mode;
   final bool enabled;
   final bool loading;
   final Future<void> Function() onPressed;
@@ -1838,7 +1886,7 @@ class _SendButton extends StatelessWidget {
             duration: const Duration(milliseconds: 160),
             child: loading
                 ? const SizedBox(
-                    key: ValueKey<String>('sending'),
+                    key: ValueKey<String>('loading'),
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
@@ -1847,8 +1895,10 @@ class _SendButton extends StatelessWidget {
                     ),
                   )
                 : Icon(
-                    Icons.arrow_upward_rounded,
-                    key: const ValueKey<String>('send'),
+                    mode == _ComposerPrimaryAction.stop
+                        ? Icons.stop_rounded
+                        : Icons.arrow_upward_rounded,
+                    key: ValueKey<_ComposerPrimaryAction>(mode),
                     size: 22,
                     color: enabled ? Colors.white : Palette.mutedInk,
                   ),
