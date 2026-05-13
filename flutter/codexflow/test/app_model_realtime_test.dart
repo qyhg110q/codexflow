@@ -92,6 +92,60 @@ void main() {
     expect(items.single.body, 'hello world');
   });
 
+  test(
+    'keeps live agent text and context usage when session snapshot is behind',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
+      final model = AppModel(prefs);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+
+      unawaited(
+        server.forEach((request) async {
+          request.response.headers.contentType = ContentType.json;
+          if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/sessions/thread-1') {
+            request.response.write(
+              jsonEncode(
+                _sessionDetailJson(
+                  summary: _summaryJson(usedTokens: 1000),
+                  turns: <dynamic>[],
+                ),
+              ),
+            );
+          } else {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+          }
+          await request.response.close();
+        }),
+      );
+
+      model.baseUrlString = 'http://${server.address.host}:${server.port}';
+      model.sessionDetails['thread-1'] = SessionDetail(
+        summary: _summary(usedTokens: 2000),
+        turns: <TurnDetail>[_turn()],
+      );
+      model.applyRealtimeEvent(
+        AgentEvent(
+          type: 'turn.agentMessage.delta',
+          payload: <String, dynamic>{
+            'threadId': 'thread-1',
+            'turnId': 'turn-1',
+            'delta': 'already visible',
+          },
+        ),
+      );
+
+      await model.loadSession('thread-1');
+      await server.close(force: true);
+
+      final detail = model.sessionDetails['thread-1']!;
+      expect(detail.summary.contextWindowUsage.usedTokens, 2000);
+      expect(detail.turns.single.items.single.body, 'already visible');
+    },
+  );
+
   test('removes resolved approval from local dashboard immediately', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();
@@ -162,7 +216,8 @@ void main() {
   });
 }
 
-SessionSummary _summary({int pendingApprovals = 0}) {
+SessionSummary _summary({int pendingApprovals = 0, int usedTokens = 0}) {
+  final hasUsage = usedTokens > 0;
   return SessionSummary(
     id: 'thread-1',
     agentId: 'codex',
@@ -189,7 +244,9 @@ SessionSummary _summary({int pendingApprovals = 0}) {
     resumeAvailable: true,
     resumeBlockedReason: '',
     ended: false,
-    contextWindowUsage: ContextWindowUsage.empty(),
+    contextWindowUsage: hasUsage
+        ? ContextWindowUsage.fromJson(_contextUsageJson(usedTokens))
+        : ContextWindowUsage.empty(),
   );
 }
 
@@ -253,9 +310,38 @@ Map<String, dynamic> _dashboardJson() {
   };
 }
 
-Map<String, dynamic> _sessionDetailJson() {
+Map<String, dynamic> _sessionDetailJson({
+  Map<String, dynamic>? summary,
+  List<dynamic>? turns,
+}) {
   return <String, dynamic>{
-    'summary': _dashboardJson()['sessions'][0],
-    'turns': <dynamic>[],
+    'summary': summary ?? _dashboardJson()['sessions'][0],
+    'turns': turns ?? <dynamic>[],
+  };
+}
+
+Map<String, dynamic> _summaryJson({int usedTokens = 0}) {
+  final summary = Map<String, dynamic>.from(
+    asMap(asList(_dashboardJson()['sessions']).single),
+  );
+  summary['contextWindowUsage'] = usedTokens > 0
+      ? _contextUsageJson(usedTokens)
+      : <String, dynamic>{};
+  return summary;
+}
+
+Map<String, dynamic> _contextUsageJson(int usedTokens) {
+  const contextWindow = 10000;
+  return <String, dynamic>{
+    'available': true,
+    'usedTokens': usedTokens,
+    'contextWindow': contextWindow,
+    'remainingTokens': contextWindow - usedTokens,
+    'ratio': usedTokens / contextWindow,
+    'percent': (usedTokens / contextWindow * 100).round(),
+    'lastTokenUsage': <String, dynamic>{},
+    'totalTokenUsage': <String, dynamic>{'totalTokens': usedTokens},
+    'updatedAt': '2026-05-13T00:00:00Z',
+    'source': 'test',
   };
 }

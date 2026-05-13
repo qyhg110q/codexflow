@@ -461,14 +461,126 @@ class AppModel extends ChangeNotifier {
 
   Future<void> loadSession(String id) async {
     try {
-      final detail = await _client().sessionDetail(id);
-      sessionDetails[id] = detail;
+      final incoming = await _client().sessionDetail(id);
+      final current = sessionDetails[id];
+      sessionDetails[id] = current == null
+          ? incoming
+          : _mergeSessionDetail(current, incoming);
       connectionError = '';
       notifyListeners();
     } catch (error) {
       connectionError = error.toString();
       notifyListeners();
     }
+  }
+
+  SessionDetail _mergeSessionDetail(
+    SessionDetail current,
+    SessionDetail incoming,
+  ) {
+    return SessionDetail(
+      summary: _mergeSessionSummary(current.summary, incoming.summary),
+      turns: _mergeTurns(current.turns, incoming.turns),
+    );
+  }
+
+  SessionSummary _mergeSessionSummary(
+    SessionSummary current,
+    SessionSummary incoming,
+  ) {
+    final currentUsage = current.contextWindowUsage;
+    final incomingUsage = incoming.contextWindowUsage;
+    if (!currentUsage.available || !incomingUsage.available) {
+      return incoming;
+    }
+    if (incomingUsage.usedTokens >= currentUsage.usedTokens) {
+      return incoming;
+    }
+    return _sessionWithContextWindowUsage(incoming, currentUsage);
+  }
+
+  List<TurnDetail> _mergeTurns(
+    List<TurnDetail> currentTurns,
+    List<TurnDetail> incomingTurns,
+  ) {
+    final currentById = <String, TurnDetail>{
+      for (final turn in currentTurns)
+        if (turn.id.isNotEmpty) turn.id: turn,
+    };
+    final merged = <TurnDetail>[];
+    final incomingIds = <String>{};
+
+    for (final incoming in incomingTurns) {
+      incomingIds.add(incoming.id);
+      final current = currentById[incoming.id];
+      merged.add(
+        current == null ? incoming : _mergeTurnDetail(current, incoming),
+      );
+    }
+
+    for (final current in currentTurns) {
+      if (current.id.isNotEmpty && incomingIds.contains(current.id)) {
+        continue;
+      }
+      if (current.items.isNotEmpty || current.status == 'inProgress') {
+        merged.add(current);
+      }
+    }
+
+    return merged;
+  }
+
+  TurnDetail _mergeTurnDetail(TurnDetail current, TurnDetail incoming) {
+    return incoming.copyWith(items: _mergeTurnItems(current, incoming));
+  }
+
+  List<TurnItem> _mergeTurnItems(TurnDetail current, TurnDetail incoming) {
+    final merged = <TurnItem>[...incoming.items];
+    for (final currentItem in current.items) {
+      final matchingIndex = _findMergeItemIndex(merged, currentItem);
+      if (matchingIndex < 0) {
+        merged.add(currentItem);
+        continue;
+      }
+
+      final incomingItem = merged[matchingIndex];
+      if (currentItem.type == 'agentMessage' &&
+          incomingItem.type == 'agentMessage' &&
+          currentItem.body.length > incomingItem.body.length) {
+        merged[matchingIndex] = currentItem.copyWith(
+          id: incomingItem.id.isEmpty ? currentItem.id : incomingItem.id,
+          status: incomingItem.status.isEmpty
+              ? currentItem.status
+              : incomingItem.status,
+        );
+      }
+    }
+    return merged;
+  }
+
+  int _findMergeItemIndex(List<TurnItem> items, TurnItem target) {
+    final itemId = target.id.trim();
+    if (itemId.isNotEmpty) {
+      final index = items.indexWhere((item) => item.id == itemId);
+      if (index >= 0) {
+        return index;
+      }
+    }
+
+    if (target.type != 'agentMessage') {
+      return -1;
+    }
+    for (var idx = items.length - 1; idx >= 0; idx -= 1) {
+      final item = items[idx];
+      if (item.type != 'agentMessage') {
+        continue;
+      }
+      if (target.body.startsWith(item.body) ||
+          item.body.startsWith(target.body)) {
+        return idx;
+      }
+    }
+    return -1;
   }
 
   bool applyRealtimeEvent(AgentEvent event) {
@@ -1132,6 +1244,40 @@ class AppModel extends ChangeNotifier {
       resumeBlockedReason: session.resumeBlockedReason,
       ended: session.ended,
       contextWindowUsage: session.contextWindowUsage,
+    );
+  }
+
+  SessionSummary _sessionWithContextWindowUsage(
+    SessionSummary session,
+    ContextWindowUsage contextWindowUsage,
+  ) {
+    return SessionSummary(
+      id: session.id,
+      agentId: session.agentId,
+      name: session.name,
+      preview: session.preview,
+      cwd: session.cwd,
+      source: session.source,
+      status: session.status,
+      activeFlags: session.activeFlags,
+      loaded: session.loaded,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      modelProvider: session.modelProvider,
+      branch: session.branch,
+      pendingApprovals: session.pendingApprovals,
+      lastTurnId: session.lastTurnId,
+      lastTurnStatus: session.lastTurnStatus,
+      agentNickname: session.agentNickname,
+      agentRole: session.agentRole,
+      lifecycleStage: session.lifecycleStage,
+      historyAvailable: session.historyAvailable,
+      runtimeAvailable: session.runtimeAvailable,
+      runtimeAttachMode: session.runtimeAttachMode,
+      resumeAvailable: session.resumeAvailable,
+      resumeBlockedReason: session.resumeBlockedReason,
+      ended: session.ended,
+      contextWindowUsage: contextWindowUsage,
     );
   }
 
