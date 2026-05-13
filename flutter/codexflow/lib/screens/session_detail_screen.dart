@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -36,7 +37,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   bool _isUploadingImage = false;
   bool _isSubmittingPrompt = false;
   bool _isAtBottom = true;
+  bool _stickToBottom = true;
   bool _showJumpToLatest = false;
+  String _contentSignature = '';
 
   @override
   void initState() {
@@ -91,7 +94,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     final summary = _summary(model);
     final approvals = _sessionApprovals(model);
     if (summary == null) {
-      await _refreshSessionPage();
+      await _refreshSessionPage(keepBottomIfPinned: true);
       return;
     }
     if (summary.isEnded) {
@@ -100,12 +103,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (approvals.isNotEmpty ||
         summary.hasWaitingState ||
         summary.lastTurnStatus == 'inProgress') {
-      await _refreshSessionPage();
+      await _refreshSessionPage(keepBottomIfPinned: true);
       return;
     }
     _tick += 1;
     if (_tick % 2 == 0) {
-      await _refreshSessionPage();
+      await _refreshSessionPage(keepBottomIfPinned: true);
     }
   }
 
@@ -113,11 +116,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     bool keepBottomIfPinned = false,
     bool forceBottom = false,
   }) async {
-    final wasAtBottom = _isNearBottom();
+    final wasPinned = _stickToBottom || _isNearBottom();
     final model = context.read<AppModel>();
     await model.refreshDashboard();
     await model.loadSession(widget.sessionId);
-    if (mounted && (forceBottom || (keepBottomIfPinned && wasAtBottom))) {
+    if (mounted && (forceBottom || (keepBottomIfPinned && wasPinned))) {
+      _stickToBottom = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
   }
@@ -126,6 +130,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (!_scrollController.hasClients) {
       return;
     }
+    _stickToBottom = true;
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
       duration: const Duration(milliseconds: 220),
@@ -135,13 +140,36 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   void _handleScroll() {
     final atBottom = _isNearBottom();
-    if (atBottom == _isAtBottom && _showJumpToLatest == !atBottom) {
+    if (atBottom) {
+      _stickToBottom = true;
+    }
+    final showJumpToLatest = !_stickToBottom && !atBottom;
+    if (atBottom == _isAtBottom && _showJumpToLatest == showJumpToLatest) {
       return;
     }
     setState(() {
       _isAtBottom = atBottom;
-      _showJumpToLatest = !atBottom;
+      _showJumpToLatest = showJumpToLatest;
     });
+  }
+
+  bool _handleUserScroll(UserScrollNotification notification) {
+    if (notification.direction == ScrollDirection.forward && !_isNearBottom()) {
+      _stickToBottom = false;
+      if (!_showJumpToLatest && mounted) {
+        setState(() {
+          _showJumpToLatest = true;
+        });
+      }
+    } else if (_isNearBottom()) {
+      _stickToBottom = true;
+      if (_showJumpToLatest && mounted) {
+        setState(() {
+          _showJumpToLatest = false;
+        });
+      }
+    }
+    return false;
   }
 
   bool _isNearBottom() {
@@ -150,6 +178,41 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
     final position = _scrollController.position;
     return position.maxScrollExtent - position.pixels <= 96;
+  }
+
+  void _syncBottomPin(SessionDetail? detail, TurnDetail? activeTurn) {
+    final signature = _buildContentSignature(detail, activeTurn);
+    if (signature == _contentSignature) {
+      return;
+    }
+    _contentSignature = signature;
+    if (!_stickToBottom) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  String _buildContentSignature(SessionDetail? detail, TurnDetail? activeTurn) {
+    if (detail == null) {
+      return 'loading';
+    }
+    final parts = <String>[
+      detail.turns.length.toString(),
+      activeTurn?.id ?? '',
+      activeTurn?.status ?? '',
+    ];
+    for (final turn in detail.turns) {
+      parts.add(turn.id);
+      parts.add(turn.status);
+      parts.add(turn.items.length.toString());
+      for (final item in turn.items) {
+        parts.add(item.id);
+        parts.add(item.status);
+        parts.add(item.body.length.toString());
+        parts.add(item.auxiliary.length.toString());
+      }
+    }
+    return parts.join('|');
   }
 
   void _startEventStream() {
@@ -162,7 +225,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         return;
       }
       final appliedRealtime = model.applyRealtimeEvent(event);
-      if (appliedRealtime && _isNearBottom()) {
+      if (appliedRealtime && (_stickToBottom || _isNearBottom())) {
+        _stickToBottom = true;
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
       if (appliedRealtime && _isStreamingTextEvent(event.type)) {
@@ -303,6 +367,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       (turn) => turn?.status == 'inProgress',
       orElse: () => null,
     );
+    _syncBottomPin(detail, activeTurn);
 
     return Scaffold(
       backgroundColor: Palette.canvas,
@@ -349,23 +414,28 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   RefreshIndicator(
                     color: Palette.accent,
                     onRefresh: _refreshSessionPage,
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
-                      children: <Widget>[
-                        if (summary == null) ...<Widget>[
-                          _SystemBubble(text: l10n.t('session.loadingInfo')),
-                          const SizedBox(height: 14),
+                    child: NotificationListener<UserScrollNotification>(
+                      onNotification: _handleUserScroll,
+                      child: ListView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
+                        children: <Widget>[
+                          if (summary == null) ...<Widget>[
+                            _SystemBubble(text: l10n.t('session.loadingInfo')),
+                            const SizedBox(height: 14),
+                          ],
+                          if (detail == null)
+                            const _LoadingBubble()
+                          else
+                            ..._buildMessageFlow(detail, summary),
+                          if (activeTurn != null) ...<Widget>[
+                            const SizedBox(height: 8),
+                            _SystemBubble(
+                              text: l10n.t('session.agentReplying'),
+                            ),
+                          ],
                         ],
-                        if (detail == null)
-                          const _LoadingBubble()
-                        else
-                          ..._buildMessageFlow(detail, summary),
-                        if (activeTurn != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          _SystemBubble(text: l10n.t('session.agentReplying')),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                   if (_showJumpToLatest)
