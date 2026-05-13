@@ -30,19 +30,7 @@ class DashboardScreen extends StatelessWidget {
         .where((session) => session.status == 'active' && !session.isEnded)
         .length;
     final pendingApprovalCount = filteredApprovals.length;
-
-    final managedSessions = filteredSessions
-        .where((session) => session.lifecycleStage == 'managed')
-        .toList();
-    final endedSessions = filteredSessions
-        .where((session) => session.lifecycleStage == 'ended')
-        .toList();
-    final runtimeSessions = filteredSessions
-        .where((session) => session.lifecycleStage == 'runtime_available')
-        .toList();
-    final historySessions = filteredSessions
-        .where((session) => session.lifecycleStage == 'history_only')
-        .toList();
+    final workspaceGroups = _workspaceSessionGroups(filteredSessions);
 
     return Scaffold(
       backgroundColor: Palette.canvas,
@@ -175,34 +163,9 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 )
               else ...<Widget>[
-                if (managedSessions.isNotEmpty)
-                  _SessionGroup(
-                    title: l10n.t('dashboard.managed'),
-                    helper: '',
-                    sessions: managedSessions,
-                  ),
-                if (endedSessions.isNotEmpty)
-                  _SessionGroup(
-                    title: l10n.t('dashboard.ended'),
-                    helper: '',
-                    sessions: endedSessions,
-                  ),
-                if (runtimeSessions.isNotEmpty)
-                  _SessionGroup(
-                    title: selectedAgentId == 'claude'
-                        ? l10n.t('dashboard.runtimeAvailable')
-                        : l10n.t('dashboard.pendingTakeover'),
-                    helper: '',
-                    sessions: runtimeSessions,
-                  ),
-                if (historySessions.isNotEmpty)
-                  _SessionGroup(
-                    title: selectedAgentId == 'claude'
-                        ? l10n.t('dashboard.historyImport')
-                        : l10n.t('dashboard.historySession'),
-                    helper: '',
-                    sessions: historySessions,
-                  ),
+                ...workspaceGroups.map(
+                  (group) => _WorkspaceSessionGroup(group: group),
+                ),
               ],
             ],
           ),
@@ -1023,61 +986,183 @@ class _AgentSwitchButton extends StatelessWidget {
   }
 }
 
-class _SessionGroup extends StatelessWidget {
-  const _SessionGroup({
+class _WorkspaceSessionGroupData {
+  const _WorkspaceSessionGroupData({
+    required this.key,
     required this.title,
-    required this.helper,
+    required this.cwd,
     required this.sessions,
   });
 
+  final String key;
   final String title;
-  final String helper;
+  final String cwd;
   final List<SessionSummary> sessions;
+}
+
+List<_WorkspaceSessionGroupData> _workspaceSessionGroups(
+  List<SessionSummary> sessions,
+) {
+  final grouped = <String, List<SessionSummary>>{};
+  final cwdByKey = <String, String>{};
+  for (final session in sessions) {
+    final key = _workspaceKey(session.cwd);
+    grouped.putIfAbsent(key, () => <SessionSummary>[]).add(session);
+    cwdByKey.putIfAbsent(key, () => session.cwd.trim());
+  }
+
+  final groups = grouped.entries
+      .map(
+        (entry) => _WorkspaceSessionGroupData(
+          key: entry.key,
+          title: _workspaceTitle(cwdByKey[entry.key] ?? ''),
+          cwd: cwdByKey[entry.key] ?? '',
+          sessions: entry.value,
+        ),
+      )
+      .toList();
+  groups.sort((left, right) {
+    final leftUpdated = left.sessions.fold<int>(
+      0,
+      (value, session) => value > session.updatedAt ? value : session.updatedAt,
+    );
+    final rightUpdated = right.sessions.fold<int>(
+      0,
+      (value, session) => value > session.updatedAt ? value : session.updatedAt,
+    );
+    return rightUpdated.compareTo(leftUpdated);
+  });
+  return groups;
+}
+
+String _workspaceKey(String cwd) {
+  final trimmed = cwd.trim();
+  if (trimmed.isEmpty) {
+    return '__unknown_workspace__';
+  }
+  return trimmed
+      .replaceAll('\\', '/')
+      .replaceAll(RegExp(r'/+$'), '')
+      .toLowerCase();
+}
+
+String _workspaceTitle(String cwd) {
+  final trimmed = cwd.trim();
+  if (trimmed.isEmpty) {
+    return '未识别工作区';
+  }
+  final normalized = trimmed
+      .replaceAll('\\', '/')
+      .replaceAll(RegExp(r'/+$'), '');
+  final parts = normalized.split('/').where((part) => part.trim().isNotEmpty);
+  final last = parts.isEmpty ? normalized : parts.last.trim();
+  if (last.isEmpty) {
+    return '未识别工作区';
+  }
+  final runes = last.runes.toList();
+  final first = String.fromCharCode(runes.first).toUpperCase();
+  return '$first${String.fromCharCodes(runes.skip(1))}';
+}
+
+class _WorkspaceSessionGroup extends StatefulWidget {
+  const _WorkspaceSessionGroup({required this.group});
+
+  final _WorkspaceSessionGroupData group;
+
+  @override
+  State<_WorkspaceSessionGroup> createState() => _WorkspaceSessionGroupState();
+}
+
+class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
+    final group = widget.group;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                title,
-                style: roundedTextStyle(size: 14, weight: FontWeight.w600),
+      child: PanelCard(
+        compact: true,
+        child: Column(
+          children: <Widget>[
+            InkWell(
+              onTap: () => setState(() {
+                _expanded = !_expanded;
+              }),
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Palette.softBlue.appOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.folder_open_rounded,
+                        size: 18,
+                        color: Palette.softBlue,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            group.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: roundedTextStyle(
+                              size: 15,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          if (group.cwd.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 2),
+                            Text(
+                              group.cwd,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: roundedTextStyle(
+                                size: 11,
+                                weight: FontWeight.w500,
+                                color: Palette.mutedInk,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    CapsuleTag(title: '会话', value: '${group.sessions.length}'),
+                    const SizedBox(width: 6),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 22,
+                      color: Palette.mutedInk,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '${sessions.length}',
-                style: roundedTextStyle(
-                  size: 12,
-                  weight: FontWeight.w600,
-                  color: Palette.mutedInk,
+            ),
+            if (_expanded) ...<Widget>[
+              const SizedBox(height: 10),
+              ...group.sessions.map(
+                (session) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SessionRow(session: session),
                 ),
               ),
             ],
-          ),
-          if (helper.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              helper,
-              style: roundedTextStyle(
-                size: 13,
-                weight: FontWeight.w500,
-                color: Palette.mutedInk,
-                height: 1.45,
-              ),
-            ),
           ],
-          const SizedBox(height: 8),
-          ...sessions.map(
-            (session) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SessionRow(session: session),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1092,129 +1177,37 @@ class SessionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final model = context.watch<AppModel>();
     final capabilities = model.capabilitiesForSession(session);
-    final showApprovalAction =
-        capabilities.supportsApprovals && session.pendingApprovals > 0;
-    final showArchiveAction = capabilities.supportsArchive && session.isEnded;
+    final canArchive = capabilities.supportsArchive;
     return PanelCard(
       compact: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          InkWell(
-            onTap: () => _openDetail(context),
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    AgentMark(agentId: session.agentId),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  session.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: roundedTextStyle(
-                                    size: 15,
-                                    weight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              StatusPill(
-                                status: session.status,
-                                waiting: session.hasWaitingState,
-                                ended: session.isEnded,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            session.previewSummary.isEmpty
-                                ? session.cwd
-                                : session.previewSummary,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: roundedTextStyle(
-                              size: 12,
-                              weight: FontWeight.w500,
-                              color: Palette.mutedInk,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+      child: InkWell(
+        onTap: () => _openDetail(context),
+        onLongPress: canArchive ? () => _showSessionActions(context) : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: <Widget>[
+            AgentMark(agentId: session.agentId),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _firstMessageLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: roundedTextStyle(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: Palette.ink,
                 ),
-                const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: <Widget>[
-                      CapsuleTag(title: '状态', value: _sessionStateLabel),
-                      if (session.isClaudeSession) ...<Widget>[
-                        const SizedBox(width: 8),
-                        CapsuleTag(
-                          title: '链路',
-                          value: session.runtimeAvailable
-                              ? 'Runtime'
-                              : 'History',
-                        ),
-                      ],
-                      const SizedBox(width: 8),
-                      CapsuleTag(
-                        title: '分支',
-                        value: session.branch.isEmpty ? '未识别' : session.branch,
-                      ),
-                      const SizedBox(width: 8),
-                      CapsuleTag(title: '更新', value: session.updatedAtDisplay),
-                      if (session.lastTurnStatus.isNotEmpty) ...<Widget>[
-                        const SizedBox(width: 8),
-                        CapsuleTag(
-                          title: '最近',
-                          value: _lastTurnStatusLabel(session.lastTurnStatus),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (showApprovalAction) ...<Widget>[
-            const SizedBox(height: 10),
-            ActionButton(
-              title: '处理审批 (${session.pendingApprovals})',
-              background: Palette.warning.appOpacity(0.14),
-              foreground: Palette.warning,
-              borderColor: Palette.warning.appOpacity(0.22),
-              onPressed: () => _openDetail(context),
-            ),
-          ],
-          if (showArchiveAction) ...<Widget>[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () async {
-                await context.read<AppModel>().archiveSession(session);
-              },
-              icon: const Icon(Icons.archive_outlined, size: 15),
-              label: const Text('归档'),
-              style: TextButton.styleFrom(
-                foregroundColor: Palette.danger,
-                textStyle: roundedTextStyle(size: 12, weight: FontWeight.w700),
               ),
             ),
+            const SizedBox(width: 8),
+            StatusPill(
+              status: _displayStatus,
+              waiting: session.hasWaitingState || session.pendingApprovals > 0,
+              ended: session.isEnded,
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1223,27 +1216,64 @@ class SessionRow extends StatelessWidget {
     openSessionChatPage(session.id);
   }
 
-  String get _sessionStateLabel {
-    if (session.isEnded) {
-      return '已结束';
-    }
-    if (session.loaded) {
-      return '进行中';
-    }
-    return '可查看';
+  Future<void> _showSessionActions(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.canvas,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.archive_outlined,
+                    color: Palette.danger,
+                  ),
+                  title: Text(
+                    '归档',
+                    style: roundedTextStyle(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: Palette.danger,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await context.read<AppModel>().archiveSession(session);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  String _lastTurnStatusLabel(String status) {
-    switch (status) {
-      case 'inProgress':
-        return '运行中';
-      case 'completed':
-        return '已完成';
-      case 'failed':
-        return '失败';
-      default:
-        return status;
+  String get _firstMessageLabel {
+    final preview = session.previewSummary.trim();
+    if (preview.isNotEmpty) {
+      return preview;
     }
+    final name = session.displayName.trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    return '空会话';
+  }
+
+  String get _displayStatus {
+    if (session.status == 'active' && session.lastTurnStatus != 'inProgress') {
+      return 'idle';
+    }
+    return session.lastTurnStatus.isEmpty
+        ? session.status
+        : session.lastTurnStatus;
   }
 }
 
