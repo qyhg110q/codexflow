@@ -545,10 +545,10 @@ class AppModel extends ChangeNotifier {
 
       final incomingItem = merged[matchingIndex];
       if (currentItem.type == 'agentMessage' &&
-          incomingItem.type == 'agentMessage' &&
-          currentItem.body.length > incomingItem.body.length) {
-        merged[matchingIndex] = currentItem.copyWith(
+          incomingItem.type == 'agentMessage') {
+        merged[matchingIndex] = incomingItem.copyWith(
           id: incomingItem.id.isEmpty ? currentItem.id : incomingItem.id,
+          body: _bestAgentMessageText(currentItem.body, incomingItem.body),
           status: incomingItem.status.isEmpty
               ? currentItem.status
               : incomingItem.status,
@@ -655,11 +655,12 @@ class AppModel extends ChangeNotifier {
         );
       } else {
         final current = items[targetIndex];
+        final nextBody = _appendStreamingAgentText(current.body, delta);
         items[targetIndex] = current.copyWith(
           id: current.id.isEmpty ? itemId : current.id,
           type: 'agentMessage',
           title: current.title.isEmpty ? 'Agent' : current.title,
-          body: current.body + delta,
+          body: nextBody,
           status: current.status.isEmpty ? 'inProgress' : current.status,
         );
       }
@@ -728,11 +729,10 @@ class AppModel extends ChangeNotifier {
         items.add(incoming);
       } else {
         final current = items[targetIndex];
-        if (incoming.type == 'agentMessage' &&
-            current.type == 'agentMessage' &&
-            current.body.length > incoming.body.length) {
-          items[targetIndex] = current.copyWith(
+        if (incoming.type == 'agentMessage' && current.type == 'agentMessage') {
+          items[targetIndex] = incoming.copyWith(
             id: incoming.id.isEmpty ? current.id : incoming.id,
+            body: _bestAgentMessageText(current.body, incoming.body),
             status: incoming.status.isEmpty ? current.status : incoming.status,
           );
         } else {
@@ -762,6 +762,47 @@ class AppModel extends ChangeNotifier {
       }
     }
     return -1;
+  }
+
+  String _appendStreamingAgentText(String current, String delta) {
+    if (current.isEmpty || delta.isEmpty) {
+      return current + delta;
+    }
+    if (current == delta || (delta.length >= 12 && current.endsWith(delta))) {
+      return current;
+    }
+    if (delta.startsWith(current)) {
+      return delta;
+    }
+
+    final maxOverlap = math.min(current.length, delta.length);
+    for (var overlap = maxOverlap; overlap >= 12; overlap -= 1) {
+      if (current.substring(current.length - overlap) ==
+          delta.substring(0, overlap)) {
+        return current + delta.substring(overlap);
+      }
+    }
+    return current + delta;
+  }
+
+  String _bestAgentMessageText(String current, String incoming) {
+    if (current.isEmpty || incoming.isEmpty) {
+      return current.isEmpty ? incoming : current;
+    }
+    if (current == incoming) {
+      return incoming;
+    }
+    if (_isRepeatedAgentText(current, incoming)) {
+      return incoming;
+    }
+    if (_isRepeatedAgentText(incoming, current)) {
+      return current;
+    }
+    return current.length > incoming.length ? current : incoming;
+  }
+
+  bool _isRepeatedAgentText(String candidate, String unit) {
+    return unit.isNotEmpty && candidate == unit + unit;
   }
 
   bool _updateTurnPlan(Map<String, dynamic> payload) {

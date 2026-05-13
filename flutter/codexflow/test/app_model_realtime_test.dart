@@ -92,6 +92,128 @@ void main() {
     expect(items.single.body, 'hello world');
   });
 
+  test('ignores replayed full agent delta after completed item', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final model = AppModel(prefs);
+    model.sessionDetails['thread-1'] = SessionDetail(
+      summary: _summary(),
+      turns: <TurnDetail>[_turn()],
+    );
+
+    model.applyRealtimeEvent(
+      AgentEvent(
+        type: 'turn.item.completed',
+        payload: <String, dynamic>{
+          'threadId': 'thread-1',
+          'turnId': 'turn-1',
+          'item': <String, dynamic>{
+            'id': 'item-1',
+            'type': 'agentMessage',
+            'text': 'final answer',
+            'status': 'completed',
+          },
+        },
+      ),
+    );
+    model.applyRealtimeEvent(
+      AgentEvent(
+        type: 'turn.agentMessage.delta',
+        payload: <String, dynamic>{
+          'threadId': 'thread-1',
+          'turnId': 'turn-1',
+          'itemId': 'item-1',
+          'delta': 'final answer',
+        },
+      ),
+    );
+
+    final items = model.sessionDetails['thread-1']!.turns.single.items;
+    expect(items, hasLength(1));
+    expect(items.single.body, 'final answer');
+  });
+
+  test(
+    'collapses duplicated live text when snapshot has the final answer',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
+      final model = AppModel(prefs);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+
+      unawaited(
+        server.forEach((request) async {
+          request.response.headers.contentType = ContentType.json;
+          if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/sessions/thread-1') {
+            request.response.write(
+              jsonEncode(
+                _sessionDetailJson(
+                  turns: <dynamic>[
+                    <String, dynamic>{
+                      'id': 'turn-1',
+                      'status': 'completed',
+                      'startedAt': 0,
+                      'completedAt': 0,
+                      'durationMs': 0,
+                      'error': '',
+                      'diff': '',
+                      'planExplanation': '',
+                      'plan': <dynamic>[],
+                      'items': <dynamic>[
+                        <String, dynamic>{
+                          'id': 'item-1',
+                          'type': 'agentMessage',
+                          'title': 'Agent',
+                          'body': 'final answer',
+                          'status': 'completed',
+                          'auxiliary': '',
+                          'metadata': <String, dynamic>{},
+                        },
+                      ],
+                    },
+                  ],
+                ),
+              ),
+            );
+          } else {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+          }
+          await request.response.close();
+        }),
+      );
+
+      model.baseUrlString = 'http://${server.address.host}:${server.port}';
+      model.sessionDetails['thread-1'] = SessionDetail(
+        summary: _summary(),
+        turns: <TurnDetail>[
+          _turn().copyWith(
+            items: <TurnItem>[
+              TurnItem(
+                id: 'turn-1-agent-live',
+                type: 'agentMessage',
+                title: 'Agent',
+                body: 'final answerfinal answer',
+                status: 'inProgress',
+                auxiliary: '',
+                metadata: const <String, String>{},
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await model.loadSession('thread-1');
+      await server.close(force: true);
+
+      final items = model.sessionDetails['thread-1']!.turns.single.items;
+      expect(items, hasLength(1));
+      expect(items.single.id, 'item-1');
+      expect(items.single.body, 'final answer');
+    },
+  );
+
   test(
     'keeps live agent text and context usage when session snapshot is behind',
     () async {

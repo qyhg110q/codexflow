@@ -380,7 +380,7 @@ func (s *Store) AppendAgentMessageDelta(threadID, turnID, itemID, delta string) 
 	if itemID != "" && stringField(item, "id") == "" {
 		item["id"] = itemID
 	}
-	item["text"] = stringField(item, "text") + delta
+	item["text"] = appendStreamingAgentText(stringField(item, "text"), delta)
 	record.Runtime.CurrentTurnID = turnID
 }
 
@@ -845,10 +845,57 @@ func mergeAgentMessageItem(existing, incoming map[string]any) map[string]any {
 	if stringField(existing, "id") != "" && isLiveAgentMessageID(stringField(incoming, "id")) {
 		merged["id"] = stringField(existing, "id")
 	}
-	if len(stringField(existing, "text")) > len(stringField(incoming, "text")) {
-		merged["text"] = stringField(existing, "text")
-	}
+	merged["text"] = bestAgentMessageText(stringField(existing, "text"), stringField(incoming, "text"))
 	return merged
+}
+
+func appendStreamingAgentText(current, delta string) string {
+	if current == "" || delta == "" {
+		return current + delta
+	}
+	if current == delta || (len(delta) >= 12 && strings.HasSuffix(current, delta)) {
+		return current
+	}
+	if strings.HasPrefix(delta, current) {
+		return delta
+	}
+
+	maxOverlap := len(current)
+	if len(delta) < maxOverlap {
+		maxOverlap = len(delta)
+	}
+	for overlap := maxOverlap; overlap >= 12; overlap-- {
+		if current[len(current)-overlap:] == delta[:overlap] {
+			return current + delta[overlap:]
+		}
+	}
+	return current + delta
+}
+
+func bestAgentMessageText(current, incoming string) string {
+	if current == "" {
+		return incoming
+	}
+	if incoming == "" {
+		return current
+	}
+	if current == incoming {
+		return incoming
+	}
+	if isRepeatedAgentText(current, incoming) {
+		return incoming
+	}
+	if isRepeatedAgentText(incoming, current) {
+		return current
+	}
+	if len(current) > len(incoming) {
+		return current
+	}
+	return incoming
+}
+
+func isRepeatedAgentText(candidate, unit string) bool {
+	return unit != "" && candidate == unit+unit
 }
 
 func normalizedItemText(item map[string]any) string {

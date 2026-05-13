@@ -130,8 +130,6 @@ const _strings = <String, Map<String, String>>{
     'settings.localMode': '本地模式',
     'settings.localModeOn': '优先连接局域网 Agent',
     'settings.localModeOff': '保留给后续 relay / pairing',
-    'settings.mobilePrinciple': '移动端原则',
-    'settings.mobilePrincipleBody': '首页用于创建或打开会话，审批集中处理风险动作，设置只保留连接与默认偏好。',
     'settings.language': '语言',
     'settings.languageHelp': '切换后会立即更新主要界面文案。Codex、Claude Code、模型名称等专有词保持原样。',
     'settings.selectLanguage': '选择语言',
@@ -334,9 +332,6 @@ const _strings = <String, Map<String, String>>{
     'settings.localMode': 'Local mode',
     'settings.localModeOn': 'Prefer LAN Agent',
     'settings.localModeOff': 'Reserved for future relay / pairing',
-    'settings.mobilePrinciple': 'Mobile principle',
-    'settings.mobilePrincipleBody':
-        'Home creates or opens sessions, approvals collect risky actions, and settings stay focused on connection and defaults.',
     'settings.language': 'Language',
     'settings.languageHelp':
         'Main UI text updates immediately. Product terms like Codex, Claude Code, and model names stay unchanged.',

@@ -168,6 +168,68 @@ func TestRecordTurnItemMergesCompletedAgentMessageWithLiveDelta(t *testing.T) {
 	}
 }
 
+func TestAppendAgentMessageDeltaIgnoresReplayedFullText(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.RecordTurnItem("thread-1", "turn-1", map[string]any{
+		"id":   "item-1",
+		"type": "agentMessage",
+		"text": "final answer",
+	})
+	sessionStore.AppendAgentMessageDelta("thread-1", "turn-1", "item-1", "final answer")
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatal("SnapshotSession() missing thread-1")
+	}
+	items := record.Thread.Turns[0].Items
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if got := items[0]["text"]; got != "final answer" {
+		t.Fatalf("items[0][text] = %q, want final answer", got)
+	}
+}
+
+func TestUpsertThreadCollapsesDuplicatedLiveAgentText(t *testing.T) {
+	sessionStore, err := New(nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	sessionStore.AppendAgentMessageDelta("thread-1", "turn-1", "", "final answerfinal answer")
+	sessionStore.UpsertThread(codex.Thread{
+		ID: "thread-1",
+		Turns: []codex.Turn{
+			{
+				ID:     "turn-1",
+				Status: "completed",
+				Items: []map[string]any{
+					{"id": "item-1", "type": "agentMessage", "text": "final answer"},
+				},
+			},
+		},
+	})
+
+	record, ok := sessionStore.SnapshotSession("thread-1")
+	if !ok {
+		t.Fatal("SnapshotSession() missing thread-1")
+	}
+	items := record.Thread.Turns[0].Items
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if got := items[0]["id"]; got != "item-1" {
+		t.Fatalf("items[0][id] = %q, want item-1", got)
+	}
+	if got := items[0]["text"]; got != "final answer" {
+		t.Fatalf("items[0][text] = %q, want final answer", got)
+	}
+}
+
 func TestUpsertThreadPreservesLongerInProgressAgentMessage(t *testing.T) {
 	sessionStore, err := New(nil)
 	if err != nil {

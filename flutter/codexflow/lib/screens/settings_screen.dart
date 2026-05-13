@@ -355,33 +355,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            PanelCard(
-              compact: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    l10n.t('settings.mobilePrinciple'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Palette.ink,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    l10n.t('settings.mobilePrincipleBody'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Palette.mutedInk,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
