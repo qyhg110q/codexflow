@@ -477,11 +477,16 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                           .toList(),
                     );
                     if (sent) {
+                      if (!mounted) {
+                        return;
+                      }
                       _promptController.clear();
                       setState(() {
                         _attachments.clear();
+                        _isSubmittingPrompt = false;
                       });
-                      await _refreshSessionPage(forceBottom: true);
+                      unawaited(_refreshSessionPage(forceBottom: true));
+                      return;
                     }
                   } finally {
                     if (mounted) {

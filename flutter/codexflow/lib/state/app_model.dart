@@ -1116,14 +1116,18 @@ class AppModel extends ChangeNotifier {
           imageUploadIds: imageUploadIds,
         );
       }
-      await refreshDashboard();
-      await loadSession(session.id);
+      unawaited(_refreshSubmittedSession(session.id));
       return true;
     } catch (error) {
       connectionError = error.toString();
       notifyListeners();
       return false;
     }
+  }
+
+  Future<void> _refreshSubmittedSession(String sessionId) async {
+    await refreshDashboard();
+    await loadSession(sessionId);
   }
 
   Future<UploadedImageRef?> uploadImage({

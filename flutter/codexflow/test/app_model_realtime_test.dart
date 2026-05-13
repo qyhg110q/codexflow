@@ -146,6 +146,52 @@ void main() {
     },
   );
 
+  test(
+    'submit prompt returns after agent accepts message before refresh completes',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
+      final model = AppModel(prefs);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final dashboardGate = Completer<void>();
+      var steerCount = 0;
+
+      unawaited(
+        server.forEach((request) async {
+          request.response.headers.contentType = ContentType.json;
+          if (request.method == 'POST' &&
+              request.uri.path == '/api/v1/sessions/thread-1/turns/steer') {
+            steerCount += 1;
+            request.response.write(jsonEncode(<String, Object>{'ok': true}));
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/dashboard') {
+            await dashboardGate.future;
+            request.response.write(jsonEncode(_dashboardJson()));
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/sessions/thread-1') {
+            request.response.write(jsonEncode(_sessionDetailJson()));
+          } else {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+          }
+          await request.response.close();
+        }),
+      );
+
+      model.baseUrlString = 'http://${server.address.host}:${server.port}';
+      final sent = await model
+          .submitPrompt(session: _summary(), prompt: 'follow up')
+          .timeout(const Duration(milliseconds: 250));
+
+      expect(sent, isTrue);
+      expect(steerCount, 1);
+
+      dashboardGate.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await server.close(force: true);
+    },
+  );
+
   test('removes resolved approval from local dashboard immediately', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();
