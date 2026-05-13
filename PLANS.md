@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-13-session-home-lazy-load.md`
   - `docs/exec-plans/completed/2026-05-13-agent-markdown-contrast.md`
   - `docs/exec-plans/completed/2026-05-13-session-home-project-picker.md`
   - `docs/exec-plans/completed/2026-05-12-session-text-selection.md`
@@ -38,6 +39,10 @@ Create or update an ExecPlan when any of these are true:
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-13-session-home-lazy-load.md`
+  - Goal: limited expanded session home groups to 5 initial rows with a `展开显示` control that adds up to 20 more rows per tap.
+  - Primary surfaces: Flutter `DashboardScreen`.
+  - Validation: `flutter analyze` and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-13-agent-markdown-contrast.md`
   - Goal: raised markdown reply contrast in Flutter agent chat bubbles so inline code and other styled text remain readable on light backgrounds.
   - Primary surfaces: shared `MarkdownBodyBlock`, Flutter palette tokens, Android APK packaging validation.

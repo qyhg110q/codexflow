@@ -164,7 +164,10 @@ class DashboardScreen extends StatelessWidget {
                 )
               else ...<Widget>[
                 ...workspaceGroups.map(
-                  (group) => _WorkspaceSessionGroup(group: group),
+                  (group) => _WorkspaceSessionGroup(
+                    key: ValueKey<String>(group.key),
+                    group: group,
+                  ),
                 ),
               ],
             ],
@@ -1141,6 +1144,8 @@ class _WorkspaceSessionGroupData {
 }
 
 const String _conversationWorkspaceKey = '__conversation_without_workspace__';
+const int _initialVisibleSessionCount = 5;
+const int _additionalVisibleSessionCount = 20;
 
 List<_WorkspaceSessionGroupData> _workspaceSessionGroups(
   List<SessionSummary> sessions,
@@ -1207,7 +1212,7 @@ String _workspaceTitle(String cwd) {
 }
 
 class _WorkspaceSessionGroup extends StatefulWidget {
-  const _WorkspaceSessionGroup({required this.group});
+  const _WorkspaceSessionGroup({super.key, required this.group});
 
   final _WorkspaceSessionGroupData group;
 
@@ -1217,10 +1222,31 @@ class _WorkspaceSessionGroup extends StatefulWidget {
 
 class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
   bool _expanded = false;
+  int _visibleSessionCount = _initialVisibleSessionCount;
+
+  @override
+  void didUpdateWidget(covariant _WorkspaceSessionGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.group.key != widget.group.key) {
+      _expanded = false;
+      _visibleSessionCount = _initialVisibleSessionCount;
+      return;
+    }
+    if (_visibleSessionCount > widget.group.sessions.length) {
+      _visibleSessionCount = widget.group.sessions.length;
+    }
+    if (_visibleSessionCount < _initialVisibleSessionCount) {
+      _visibleSessionCount = _initialVisibleSessionCount;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
+    final visibleSessions = group.sessions
+        .take(_visibleSessionCount)
+        .toList(growable: false);
+    final hiddenSessionCount = group.sessions.length - visibleSessions.length;
     final icon = group.isConversationGroup
         ? Icons.chat_bubble_outline_rounded
         : Icons.folder_open_rounded;
@@ -1234,6 +1260,9 @@ class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
             InkWell(
               onTap: () => setState(() {
                 _expanded = !_expanded;
+                if (_expanded) {
+                  _visibleSessionCount = _initialVisibleSessionCount;
+                }
               }),
               borderRadius: BorderRadius.circular(14),
               child: Padding(
@@ -1296,14 +1325,48 @@ class _WorkspaceSessionGroupState extends State<_WorkspaceSessionGroup> {
             ),
             if (_expanded) ...<Widget>[
               const SizedBox(height: 10),
-              ...group.sessions.map(
+              ...visibleSessions.map(
                 (session) => Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: SessionRow(session: session),
                 ),
               ),
+              if (hiddenSessionCount > 0) ...<Widget>[
+                const SizedBox(height: 8),
+                _ShowMoreSessionsButton(
+                  onPressed: () => setState(() {
+                    _visibleSessionCount += _additionalVisibleSessionCount;
+                  }),
+                ),
+              ],
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShowMoreSessionsButton extends StatelessWidget {
+  const _ShowMoreSessionsButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.expand_more_rounded, size: 18),
+        label: const Text('展开显示'),
+        style: TextButton.styleFrom(
+          foregroundColor: Palette.softBlue,
+          textStyle: roundedTextStyle(size: 13, weight: FontWeight.w700),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
