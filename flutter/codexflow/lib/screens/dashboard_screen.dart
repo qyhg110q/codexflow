@@ -1328,8 +1328,6 @@ class SessionRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Row(
           children: <Widget>[
-            AgentMark(agentId: session.agentId),
-            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 _firstMessageLabel,
@@ -1342,12 +1340,10 @@ class SessionRow extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            StatusPill(
-              status: _displayStatus,
-              waiting: session.hasWaitingState || session.pendingApprovals > 0,
-              ended: session.isEnded,
-            ),
+            if (_isRunning) ...<Widget>[
+              const SizedBox(width: 8),
+              const _SessionActivitySpinner(),
+            ],
           ],
         ),
       ),
@@ -1409,13 +1405,34 @@ class SessionRow extends StatelessWidget {
     return '空会话';
   }
 
-  String get _displayStatus {
-    if (session.status == 'active' && session.lastTurnStatus != 'inProgress') {
-      return 'idle';
-    }
-    return session.lastTurnStatus.isEmpty
-        ? session.status
-        : session.lastTurnStatus;
+  bool get _isRunning => session.lastTurnStatus == 'inProgress';
+}
+
+class _SessionActivitySpinner extends StatelessWidget {
+  const _SessionActivitySpinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '进行中',
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Palette.accent.appOpacity(0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            color: Palette.accent,
+          ),
+        ),
+      ),
+    );
   }
 }
 

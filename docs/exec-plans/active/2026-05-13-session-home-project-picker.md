@@ -19,6 +19,8 @@ Adjust the Flutter session home so new Codex sessions can start with a recent wo
 
 - Created plan after locating the dashboard, API client, AppModel, and HTTP start-session validation paths.
 - Confirmed native Codex remote thread parameters can omit cwd.
+- Commit `f59350f` added the project picker, no-workspace start support, and the top-level `对话` group for empty cwd sessions.
+- Removed the session row agent mark and replaced lifecycle/status pills with a running-only spinner.
 
 ## Surprises & Discoveries
 
@@ -28,10 +30,12 @@ Adjust the Flutter session home so new Codex sessions can start with a recent wo
 ## Decision Log
 
 - Keep the change focused on Flutter dashboard and HTTP validation, avoiding unrelated generated platform files currently modified in the working tree.
+- Treat card activity as `lastTurnStatus == inProgress`; idle sessions render no right-side status.
 
 ## Validation
 
-- Pending.
+- `go test ./internal/httpapi`
+- `flutter analyze`
 
 ## Outcomes & Retrospective
 
