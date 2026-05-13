@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -130,7 +129,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (!_scrollController.hasClients) {
       return;
     }
-    _stickToBottom = true;
+    _setBottomFollow(true);
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
       duration: const Duration(milliseconds: 220),
@@ -141,7 +140,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   void _handleScroll() {
     final atBottom = _isNearBottom();
     if (atBottom) {
-      _stickToBottom = true;
+      _setBottomFollow(true, atBottom: atBottom);
+      return;
     }
     final showJumpToLatest = !_stickToBottom && !atBottom;
     if (atBottom == _isAtBottom && _showJumpToLatest == showJumpToLatest) {
@@ -153,23 +153,42 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     });
   }
 
-  bool _handleUserScroll(UserScrollNotification notification) {
-    if (notification.direction == ScrollDirection.forward && !_isNearBottom()) {
-      _stickToBottom = false;
-      if (!_showJumpToLatest && mounted) {
-        setState(() {
-          _showJumpToLatest = true;
-        });
-      }
-    } else if (_isNearBottom()) {
-      _stickToBottom = true;
-      if (_showJumpToLatest && mounted) {
-        setState(() {
-          _showJumpToLatest = false;
-        });
-      }
+  bool _handleScrollNotification(ScrollNotification notification) {
+    final atBottom = _isNearBottom();
+    final isUserScroll =
+        notification is UserScrollNotification ||
+        (notification is ScrollUpdateNotification &&
+            notification.dragDetails != null);
+
+    if (isUserScroll && !atBottom) {
+      _setBottomFollow(false, atBottom: atBottom);
+      return false;
+    }
+    if (atBottom) {
+      _setBottomFollow(true, atBottom: atBottom);
     }
     return false;
+  }
+
+  void _setBottomFollow(bool stickToBottom, {bool? atBottom}) {
+    final resolvedAtBottom = atBottom ?? _isNearBottom();
+    final showJumpToLatest = !stickToBottom && !resolvedAtBottom;
+    if (_stickToBottom == stickToBottom &&
+        _isAtBottom == resolvedAtBottom &&
+        _showJumpToLatest == showJumpToLatest) {
+      return;
+    }
+    if (!mounted) {
+      _stickToBottom = stickToBottom;
+      _isAtBottom = resolvedAtBottom;
+      _showJumpToLatest = showJumpToLatest;
+      return;
+    }
+    setState(() {
+      _stickToBottom = stickToBottom;
+      _isAtBottom = resolvedAtBottom;
+      _showJumpToLatest = showJumpToLatest;
+    });
   }
 
   bool _isNearBottom() {
@@ -414,8 +433,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   RefreshIndicator(
                     color: Palette.accent,
                     onRefresh: _refreshSessionPage,
-                    child: NotificationListener<UserScrollNotification>(
-                      onNotification: _handleUserScroll,
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: _handleScrollNotification,
                       child: ListView(
                         controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
