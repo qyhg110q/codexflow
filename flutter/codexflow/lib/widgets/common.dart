@@ -641,6 +641,12 @@ class MarkdownBodyBlock extends StatelessWidget {
       shrinkWrap: true,
       softLineBreak: true,
       styleSheet: MarkdownStyleSheet(
+        a: roundedTextStyle(
+          size: 12,
+          weight: FontWeight.w600,
+          color: Palette.softBlue,
+          height: 1.5,
+        ),
         p: roundedTextStyle(
           size: 12,
           weight: FontWeight.w500,
@@ -674,13 +680,15 @@ class MarkdownBodyBlock extends StatelessWidget {
         ),
         code: roundedTextStyle(
           size: 11,
-          weight: FontWeight.w500,
+          weight: FontWeight.w600,
           color: Palette.codeText,
+          height: 1.45,
           fontFamily: 'monospace',
-        ),
+        ).copyWith(backgroundColor: Palette.codeBackground),
         codeblockDecoration: BoxDecoration(
           color: Palette.codeBackground,
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Palette.line),
         ),
         blockquoteDecoration: BoxDecoration(
           color: Palette.softBlue.appOpacity(0.06),

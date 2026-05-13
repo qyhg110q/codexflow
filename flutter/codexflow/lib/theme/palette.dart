@@ -20,8 +20,8 @@ class Palette {
   static const terminalBackground = Color.fromRGBO(26, 33, 38, 1);
   static const terminalText = Color.fromRGBO(219, 227, 230, 1);
   static const terminalMuted = Color.fromRGBO(158, 173, 179, 1);
-  static const codeBackground = Color.fromRGBO(31, 36, 41, 1);
-  static const codeText = Color.fromRGBO(230, 235, 237, 1);
+  static const codeBackground = Color.fromRGBO(241, 244, 247, 1);
+  static const codeText = Color.fromRGBO(32, 37, 42, 1);
 
   static const dashboardGradient = LinearGradient(
     colors: [canvas, Color.fromRGBO(250, 250, 248, 1), shell],
