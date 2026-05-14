@@ -94,6 +94,81 @@ class UploadedImageRef {
   }
 }
 
+class AppReleaseAsset {
+  AppReleaseAsset({
+    required this.name,
+    required this.contentType,
+    required this.downloadUrl,
+    required this.size,
+  });
+
+  final String name;
+  final String contentType;
+  final String downloadUrl;
+  final int size;
+
+  bool get isApk =>
+      name.toLowerCase().endsWith('.apk') ||
+      contentType.toLowerCase() == 'application/vnd.android.package-archive';
+
+  factory AppReleaseAsset.fromJson(Map<String, dynamic> json) {
+    return AppReleaseAsset(
+      name: asString(json['name']),
+      contentType: asString(json['content_type']),
+      downloadUrl: asString(json['browser_download_url']),
+      size: asInt(json['size']),
+    );
+  }
+}
+
+class AppReleaseInfo {
+  AppReleaseInfo({
+    required this.tagName,
+    required this.name,
+    required this.body,
+    required this.htmlUrl,
+    required this.publishedAt,
+    required this.assets,
+  });
+
+  final String tagName;
+  final String name;
+  final String body;
+  final String htmlUrl;
+  final DateTime publishedAt;
+  final List<AppReleaseAsset> assets;
+
+  String get versionLabel {
+    final trimmed = tagName.trim();
+    if (trimmed.startsWith('v') || trimmed.startsWith('V')) {
+      return trimmed.substring(1);
+    }
+    return trimmed;
+  }
+
+  AppReleaseAsset? get apkAsset {
+    for (final asset in assets) {
+      if (asset.isApk && asset.downloadUrl.isNotEmpty) {
+        return asset;
+      }
+    }
+    return null;
+  }
+
+  factory AppReleaseInfo.fromJson(Map<String, dynamic> json) {
+    return AppReleaseInfo(
+      tagName: asString(json['tag_name']),
+      name: asString(json['name']),
+      body: asString(json['body']),
+      htmlUrl: asString(json['html_url']),
+      publishedAt: parseDateTime(json['published_at']),
+      assets: asList(
+        json['assets'],
+      ).map((item) => AppReleaseAsset.fromJson(asMap(item))).toList(),
+    );
+  }
+}
+
 class DashboardResponse {
   DashboardResponse({
     required this.agent,

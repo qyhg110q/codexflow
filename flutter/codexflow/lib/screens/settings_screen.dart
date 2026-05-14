@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../i18n/app_localizations.dart';
+import '../models/app_models.dart';
+import '../services/native_platform_bridge.dart';
 import '../state/app_model.dart';
 import '../theme/palette.dart';
 import '../widgets/common.dart';
@@ -229,6 +231,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          l10n.t('settings.updateTitle'),
+                          style: roundedTextStyle(
+                            size: 16,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: model.isCheckingForUpdate
+                            ? null
+                            : _handleCheckForUpdate,
+                        icon: model.isCheckingForUpdate
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.system_update_alt_rounded),
+                        label: Text(l10n.t('settings.checkUpdate')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _SettingsInfoRow(
+                    title: l10n.t('settings.currentVersion'),
+                    value: model.installedAppVersion,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsInfoRow(
+                    title: l10n.t('settings.latestRelease'),
+                    value: model.latestRelease?.versionLabel.isNotEmpty == true
+                        ? model.latestRelease!.versionLabel
+                        : l10n.t('settings.notChecked'),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _updateStatusText(model, l10n),
+                    style: roundedTextStyle(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: _updateStatusColor(model),
+                      height: 1.45,
+                    ),
+                  ),
+                  if (model.hasUpdateAvailable &&
+                      model.latestRelease?.apkAsset != null) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showUpdateSheet(model.latestRelease!),
+                        icon: const Icon(Icons.description_outlined),
+                        label: Text(l10n.t('settings.viewUpdate')),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            PanelCard(
+              compact: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
                   Text(
                     l10n.t('settings.defaultPolicy'),
                     style: roundedTextStyle(size: 16, weight: FontWeight.w600),
@@ -357,6 +430,199 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _updateStatusText(AppModel model, AppLocalizations l10n) {
+    switch (model.updateCheckStatus) {
+      case UpdateCheckStatus.checking:
+        return l10n.t('settings.checkingUpdateBody');
+      case UpdateCheckStatus.updateAvailable:
+        return l10n.t('settings.updateAvailableBody', <String, String>{
+          'version': model.latestRelease?.versionLabel ?? '',
+        });
+      case UpdateCheckStatus.upToDate:
+        return l10n.t('settings.upToDateBody', <String, String>{
+          'version': model.updateCheckMessage,
+        });
+      case UpdateCheckStatus.failed:
+        return l10n.t('settings.updateFailedBody', <String, String>{
+          'error': model.updateCheckMessage,
+        });
+      case UpdateCheckStatus.idle:
+        return l10n.t('settings.updateHint');
+    }
+  }
+
+  Color _updateStatusColor(AppModel model) {
+    switch (model.updateCheckStatus) {
+      case UpdateCheckStatus.updateAvailable:
+        return Palette.accent;
+      case UpdateCheckStatus.failed:
+        return Palette.danger;
+      case UpdateCheckStatus.checking:
+        return Palette.softBlue;
+      case UpdateCheckStatus.upToDate:
+      case UpdateCheckStatus.idle:
+        return Palette.mutedInk;
+    }
+  }
+
+  Future<void> _handleCheckForUpdate() async {
+    final model = context.read<AppModel>();
+    final release = await model.checkForUpdates();
+    if (!mounted) {
+      return;
+    }
+    final l10n = AppLocalizations.of(model.languageCode);
+    if (model.updateCheckStatus == UpdateCheckStatus.updateAvailable &&
+        release != null) {
+      await _showUpdateSheet(release);
+      return;
+    }
+
+    final message = switch (model.updateCheckStatus) {
+      UpdateCheckStatus.upToDate => l10n.t(
+        'settings.upToDateToast',
+        <String, String>{'version': model.updateCheckMessage},
+      ),
+      UpdateCheckStatus.failed => l10n.t(
+        'settings.updateFailedToast',
+        <String, String>{'error': model.updateCheckMessage},
+      ),
+      _ => null,
+    };
+    if (message == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _showUpdateSheet(AppReleaseInfo release) async {
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
+    final apkAsset = release.apkAsset;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.82,
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+          decoration: const BoxDecoration(
+            color: Palette.canvas,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Palette.line,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  l10n.t('settings.updateAvailableTitle', <String, String>{
+                    'version': release.versionLabel,
+                  }),
+                  style: roundedTextStyle(size: 17, weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  release.name.isNotEmpty ? release.name : release.tagName,
+                  style: roundedTextStyle(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: Palette.mutedInk,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Palette.shell,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: MarkdownBodyBlock(
+                        raw: release.body.trim().isEmpty
+                            ? l10n.t('settings.updateNotesEmpty')
+                            : release.body,
+                        selectable: true,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: Text(l10n.t('common.close')),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: apkAsset == null
+                            ? null
+                            : () async {
+                                Navigator.of(sheetContext).pop();
+                                await _openReleaseDownload(
+                                  apkAsset.downloadUrl,
+                                );
+                              },
+                        icon: const Icon(Icons.download_rounded),
+                        label: Text(l10n.t('settings.downloadApk')),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openReleaseDownload(String url) async {
+    final l10n = AppLocalizations.of(context.read<AppModel>().languageCode);
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.t('settings.invalidDownloadLink')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final launched = await NativePlatformBridge.openExternalUrl(uri.toString());
+    if (!mounted || launched) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.t('settings.openBrowserFailed')),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

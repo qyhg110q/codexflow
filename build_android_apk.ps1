@@ -167,6 +167,7 @@ Ensure-Directory $pubCache
 Ensure-Directory $gradleHome
 
 $flutterBat = Ensure-FlutterSdk
+$dartBat = Join-Path $flutterRoot "bin\dart.bat"
 $javaHome = Ensure-Jdk17
 $sdkManager = Ensure-AndroidCommandLineTools
 
@@ -198,8 +199,10 @@ Push-Location $flutterProject
 try {
     & $flutterBat config --no-analytics | Out-Null
     & $flutterBat doctor -v
-    & $flutterBat pub get
-    & $flutterBat build apk --release
+    # `flutter pub get` creates desktop plugin symlinks on Windows and fails
+    # without Developer Mode, even when we only need an Android APK.
+    & $dartBat pub get
+    & $flutterBat build apk --release --no-pub
 } finally {
     Pop-Location
 }

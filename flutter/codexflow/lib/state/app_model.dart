@@ -8,8 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../i18n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../services/api_client.dart';
+import '../services/github_release_client.dart';
+import '../services/native_platform_bridge.dart';
 
 enum ApprovalActionType { choice, decision, submitText }
+
+enum UpdateCheckStatus { idle, checking, upToDate, updateAvailable, failed }
 
 class AgentEndpoint {
   const AgentEndpoint({
@@ -110,12 +114,17 @@ class AppModel extends ChangeNotifier {
   bool isBootstrapped = false;
   bool isAgentOnline = false;
   bool isAgentConnecting = false;
+  bool isCheckingForUpdate = false;
   String agentConnectionError = '';
   String connectionError = '';
   String operationNotice = '';
   bool operationNoticeIsError = false;
   String composerDraft = '';
   String selectedStartAgentId = 'codex';
+  String installedAppVersion = NativePlatformBridge.fallbackAppVersion;
+  UpdateCheckStatus updateCheckStatus = UpdateCheckStatus.idle;
+  String updateCheckMessage = '';
+  AppReleaseInfo? latestRelease;
   int _consecutiveDashboardFailures = 0;
   int _connectionGeneration = 0;
   Timer? _noticeTimer;
@@ -214,7 +223,13 @@ class AppModel extends ChangeNotifier {
     }
     isBootstrapped = true;
     notifyListeners();
+    await _loadInstalledAppVersion();
     await refreshDashboard();
+  }
+
+  Future<void> _loadInstalledAppVersion() async {
+    installedAppVersion = await NativePlatformBridge.appVersion();
+    notifyListeners();
   }
 
   void updateBaseUrlString(String value) {
@@ -442,6 +457,64 @@ class AppModel extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  bool get hasUpdateAvailable =>
+      updateCheckStatus == UpdateCheckStatus.updateAvailable &&
+      latestRelease != null;
+
+  Future<AppReleaseInfo?> checkForUpdates() async {
+    if (isCheckingForUpdate) {
+      return latestRelease;
+    }
+
+    isCheckingForUpdate = true;
+    updateCheckStatus = UpdateCheckStatus.checking;
+    updateCheckMessage = '';
+    notifyListeners();
+
+    try {
+      final release = await GitHubReleaseClient().latestRelease();
+      latestRelease = release;
+      if (_compareVersions(release.versionLabel, installedAppVersion) > 0) {
+        updateCheckStatus = UpdateCheckStatus.updateAvailable;
+        updateCheckMessage = release.versionLabel;
+      } else {
+        updateCheckStatus = UpdateCheckStatus.upToDate;
+        updateCheckMessage = release.versionLabel;
+      }
+      return release;
+    } catch (error) {
+      updateCheckStatus = UpdateCheckStatus.failed;
+      updateCheckMessage = error.toString();
+      return null;
+    } finally {
+      isCheckingForUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  static int _compareVersions(String left, String right) {
+    final leftParts = _parseVersionParts(left);
+    final rightParts = _parseVersionParts(right);
+    final length = math.max(leftParts.length, rightParts.length);
+    for (var index = 0; index < length; index += 1) {
+      final leftValue = index < leftParts.length ? leftParts[index] : 0;
+      final rightValue = index < rightParts.length ? rightParts[index] : 0;
+      if (leftValue != rightValue) {
+        return leftValue.compareTo(rightValue);
+      }
+    }
+    return 0;
+  }
+
+  static List<int> _parseVersionParts(String raw) {
+    final cleaned = raw.trim().toLowerCase().replaceFirst(RegExp(r'^v'), '');
+    final core = cleaned.split('+').first.split('-').first;
+    return core
+        .split('.')
+        .map((part) => int.tryParse(part) ?? 0)
+        .toList(growable: false);
   }
 
   bool _isCurrentRefresh(int requestGeneration, String requestBaseUrl) {

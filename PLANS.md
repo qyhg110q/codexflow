@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-14-settings-github-release-update-check.md`
   - `docs/exec-plans/completed/2026-05-14-session-detail-interrupt-button.md`
   - `docs/exec-plans/completed/2026-05-13-release-packaging-and-deployment-docs.md`
   - `docs/exec-plans/completed/2026-05-13-session-detail-scroll-follow.md`
@@ -42,6 +43,10 @@ Create or update an ExecPlan when any of these are true:
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-14-settings-github-release-update-check.md`
+  - Goal: added a Settings-based GitHub Release update check for the Android app, showed release notes for new versions, and opened the APK download in the system browser.
+  - Primary surfaces: Flutter Settings UI, AppModel update state, GitHub Release client, native Android bridge, APK build script.
+  - Validation: `flutter analyze --no-pub`, targeted `flutter test --no-pub`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-13-release-packaging-and-deployment-docs.md`
   - Goal: prepared GitHub Release assets, added reproducible packaging/publishing scripts, and rewrote deployment guidance for end-user LAN and Tailscale usage.
   - Primary surfaces: release packaging scripts, Windows release launcher templates, README deployment/release docs.
