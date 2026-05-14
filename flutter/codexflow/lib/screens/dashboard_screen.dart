@@ -437,6 +437,7 @@ class _DashboardComposerState extends State<_DashboardComposer> {
   String _selectedWorkspaceCwd = '';
   late String _lastAgentEndpointId;
   late String _lastStartAgentId;
+  bool _pendingProjectReset = false;
   bool _isCreating = false;
   bool _isUploadingImage = false;
   String _submitError = '';
@@ -462,7 +463,10 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     _lastStartAgentId = widget.model.selectedStartAgentId;
 
     if (agentEndpointChanged || startAgentChanged) {
-      setState(_resetWorkspaceSelection);
+      setState(() {
+        _pendingProjectReset = true;
+        _resetWorkspaceSelection();
+      });
       return;
     }
 
@@ -471,27 +475,42 @@ class _DashboardComposerState extends State<_DashboardComposer> {
     }
 
     final recentCwds = _recentWorkspaceCwds();
+    final initialCwd = _initialCwd();
+    if (_pendingProjectReset) {
+      final targetMode = initialCwd.isEmpty
+          ? _ProjectPickerMode.none
+          : _ProjectPickerMode.recent;
+      if (initialCwd != _selectedWorkspaceCwd || _projectMode != targetMode) {
+        setState(() {
+          _projectMode = targetMode;
+          _selectedWorkspaceCwd = initialCwd;
+          _pendingProjectReset = false;
+        });
+      } else {
+        _pendingProjectReset = false;
+      }
+      return;
+    }
+
     final hasSelectedRecentWorkspace =
         _projectMode == _ProjectPickerMode.recent &&
         recentCwds.any(
           (cwd) => _workspaceKey(cwd) == _workspaceKey(_selectedWorkspaceCwd),
         );
-    if (hasSelectedRecentWorkspace ||
-        (_projectMode == _ProjectPickerMode.none &&
-            _selectedWorkspaceCwd.isEmpty)) {
+    if (hasSelectedRecentWorkspace) {
       return;
     }
 
-    final cwd = _initialCwd();
-    if (cwd != _selectedWorkspaceCwd || _projectMode != _ProjectPickerMode.none) {
+    if (initialCwd != _selectedWorkspaceCwd ||
+        (initialCwd.isNotEmpty && _projectMode != _ProjectPickerMode.recent)) {
       setState(() {
-        if (cwd.isEmpty) {
+        if (initialCwd.isEmpty) {
           _projectMode = _ProjectPickerMode.none;
           _selectedWorkspaceCwd = '';
           return;
         }
         _projectMode = _ProjectPickerMode.recent;
-        _selectedWorkspaceCwd = cwd;
+        _selectedWorkspaceCwd = initialCwd;
       });
     }
   }

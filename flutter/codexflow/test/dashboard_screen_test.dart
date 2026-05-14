@@ -9,6 +9,39 @@ import 'package:codexflow_flutter/state/app_model.dart';
 
 void main() {
   testWidgets(
+    'composer workspace follows the latest session cwd after first agent connect',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final prefs = await SharedPreferences.getInstance();
+      final model = _TestAppModel(prefs);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppModel>.value(
+          value: model,
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('不使用项目'), findsOneWidget);
+
+      model.replaceDashboardForTest(
+        _dashboardWithSessions(<SessionSummary>[
+          _session(
+            id: 'session-a',
+            cwd: r'D:\connected\latest-workspace',
+            updatedAt: 200,
+          ),
+        ]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('latest-workspace'), findsOneWidget);
+      expect(find.text('不使用项目'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'composer workspace resets to the latest session cwd after agent endpoint switch',
     (WidgetTester tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
