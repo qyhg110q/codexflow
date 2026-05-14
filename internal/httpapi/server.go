@@ -26,14 +26,14 @@ type agentBackend interface {
 	Dashboard() runtime.Dashboard
 	ListSessions() []runtime.SessionSummary
 	Refresh(context.Context) error
-	StartSession(context.Context, string, []map[string]any, string, string) (runtime.SessionSummary, error)
+	StartSession(context.Context, string, []map[string]any, string, string, string, string) (runtime.SessionSummary, error)
 	ForkSession(context.Context, string, string) (runtime.SessionSummary, error)
 	SessionDetail(context.Context, string) (runtime.SessionDetail, error)
 	ContextWindowUsage(string) (runtime.ContextWindowUsage, error)
 	ResumeSession(context.Context, string) (runtime.SessionSummary, error)
 	EndSession(context.Context, string) error
 	ArchiveSession(context.Context, string) error
-	StartTurn(context.Context, string, []map[string]any, string) (runtime.TurnDetail, error)
+	StartTurn(context.Context, string, []map[string]any, string, string, string) (runtime.TurnDetail, error)
 	SteerTurn(context.Context, string, string, []map[string]any) error
 	InterruptTurn(context.Context, string, string) error
 	PendingRequests() []runtime.PendingRequestView
@@ -95,12 +95,14 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		})
 	case http.MethodPost:
 		var request struct {
-			Action string `json:"action"`
-			CWD    string `json:"cwd"`
-			Prompt string `json:"prompt"`
-			Agent  string `json:"agent"`
-			Policy string `json:"policy"`
-			Inputs []struct {
+			Action          string `json:"action"`
+			CWD             string `json:"cwd"`
+			Prompt          string `json:"prompt"`
+			Agent           string `json:"agent"`
+			Policy          string `json:"policy"`
+			Model           string `json:"model"`
+			ReasoningEffort string `json:"reasoningEffort"`
+			Inputs          []struct {
 				Type     string `json:"type"`
 				Text     string `json:"text"`
 				UploadID string `json:"uploadId"`
@@ -132,7 +134,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				writeErrorMessage(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			session, err := s.agent.StartSession(ctx, cwd, input, request.Agent, request.Policy)
+			session, err := s.agent.StartSession(ctx, cwd, input, request.Agent, request.Policy, request.Model, request.ReasoningEffort)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, err)
 				return
@@ -249,9 +251,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var request struct {
-			Prompt string `json:"prompt"`
-			Policy string `json:"policy"`
-			Inputs []struct {
+			Prompt          string `json:"prompt"`
+			Policy          string `json:"policy"`
+			Model           string `json:"model"`
+			ReasoningEffort string `json:"reasoningEffort"`
+			Inputs          []struct {
 				Type     string `json:"type"`
 				Text     string `json:"text"`
 				UploadID string `json:"uploadId"`
@@ -268,7 +272,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			writeErrorMessage(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		turn, err := s.agent.StartTurn(ctx, sessionID, input, request.Policy)
+		turn, err := s.agent.StartTurn(ctx, sessionID, input, request.Policy, request.Model, request.ReasoningEffort)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err)
 			return

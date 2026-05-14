@@ -70,6 +70,13 @@ class ApprovalAction {
 }
 
 class AppModel extends ChangeNotifier {
+  static const Map<String, String> _canonicalModelIds = <String, String>{
+    'GPT-5.3-Codex': 'gpt-5.3-codex',
+    'GPT-5.4': 'gpt-5.4',
+    'GPT-5.4-Mini': 'gpt-5.4-mini',
+    'GPT-5.5': 'gpt-5.5',
+  };
+
   AppModel(this._prefs)
     : agentEndpoints = _loadAgentEndpoints(_prefs),
       selectedAgentEndpointId = _loadSelectedAgentEndpointId(_prefs),
@@ -1104,12 +1111,16 @@ class AppModel extends ChangeNotifier {
     required String agentId,
     List<String> imageUploadIds = const <String>[],
   }) async {
+    final modelOverride = _runtimeModelId(defaultModel);
+    final reasoningEffort = _runtimeReasoningEffort(defaultReasoning);
     try {
       final createdSession = await _client().startSession(
         cwd: cwd.trim(),
         prompt: prompt.trim(),
         agentId: agentId.trim().toLowerCase(),
         policy: defaultExecutionPolicy,
+        model: modelOverride,
+        reasoningEffort: reasoningEffort,
         imageUploadIds: imageUploadIds,
       );
       _upsertSessionSummary(createdSession);
@@ -1214,6 +1225,8 @@ class AppModel extends ChangeNotifier {
     if (trimmed.isEmpty && imageUploadIds.isEmpty) {
       return false;
     }
+    final modelOverride = _runtimeModelId(defaultModel);
+    final reasoningEffort = _runtimeReasoningEffort(defaultReasoning);
 
     try {
       if (session.lastTurnStatus == 'inProgress' &&
@@ -1229,6 +1242,8 @@ class AppModel extends ChangeNotifier {
           sessionId: session.id,
           prompt: trimmed,
           policy: defaultExecutionPolicy,
+          model: modelOverride,
+          reasoningEffort: reasoningEffort,
           imageUploadIds: imageUploadIds,
         );
       }
@@ -1401,6 +1416,29 @@ class AppModel extends ChangeNotifier {
       ended: session.ended,
       contextWindowUsage: contextWindowUsage,
     );
+  }
+
+  String _runtimeModelId(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return _canonicalModelIds[trimmed] ?? trimmed;
+  }
+
+  String _runtimeReasoningEffort(String value) {
+    final trimmed = value.trim().toLowerCase();
+    switch (trimmed) {
+      case 'none':
+      case 'minimal':
+      case 'low':
+      case 'medium':
+      case 'high':
+      case 'xhigh':
+        return trimmed;
+      default:
+        return '';
+    }
   }
 
   Object? _buildResult(PendingRequestView approval, ApprovalAction action) {

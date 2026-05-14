@@ -49,7 +49,7 @@ func TestSessionStartAllowsEmptyCWD(t *testing.T) {
 	}
 	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", strings.NewReader(`{"action":"start","cwd":"","prompt":"hello","agent":"codex","policy":"ask"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", strings.NewReader(`{"action":"start","cwd":"","prompt":"hello","agent":"codex","policy":"ask","model":"gpt-5.5","reasoningEffort":"high"}`))
 	recorder := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(recorder, request)
@@ -66,15 +66,23 @@ func TestSessionStartAllowsEmptyCWD(t *testing.T) {
 	if agent.startInput[0]["text"] != "hello" {
 		t.Fatalf("start input text = %q, want %q", agent.startInput[0]["text"], "hello")
 	}
+	if agent.startModel != "gpt-5.5" {
+		t.Fatalf("start model = %q, want %q", agent.startModel, "gpt-5.5")
+	}
+	if agent.startReasoningEffort != "high" {
+		t.Fatalf("start reasoning = %q, want %q", agent.startReasoningEffort, "high")
+	}
 }
 
 type fakeAgent struct {
-	forkThreadID string
-	forkTurnID   string
-	forkResult   runtime.SessionSummary
-	startCWD     string
-	startInput   []map[string]any
-	startResult  runtime.SessionSummary
+	forkThreadID         string
+	forkTurnID           string
+	forkResult           runtime.SessionSummary
+	startCWD             string
+	startInput           []map[string]any
+	startModel           string
+	startReasoningEffort string
+	startResult          runtime.SessionSummary
 }
 
 func (a *fakeAgent) Dashboard() runtime.Dashboard {
@@ -89,9 +97,11 @@ func (a *fakeAgent) Refresh(context.Context) error {
 	return nil
 }
 
-func (a *fakeAgent) StartSession(_ context.Context, cwd string, input []map[string]any, _ string, _ string) (runtime.SessionSummary, error) {
+func (a *fakeAgent) StartSession(_ context.Context, cwd string, input []map[string]any, _ string, _ string, model string, reasoningEffort string) (runtime.SessionSummary, error) {
 	a.startCWD = cwd
 	a.startInput = input
+	a.startModel = model
+	a.startReasoningEffort = reasoningEffort
 	return a.startResult, nil
 }
 
@@ -121,7 +131,7 @@ func (a *fakeAgent) ArchiveSession(context.Context, string) error {
 	return nil
 }
 
-func (a *fakeAgent) StartTurn(context.Context, string, []map[string]any, string) (runtime.TurnDetail, error) {
+func (a *fakeAgent) StartTurn(context.Context, string, []map[string]any, string, string, string) (runtime.TurnDetail, error) {
 	return runtime.TurnDetail{}, nil
 }
 

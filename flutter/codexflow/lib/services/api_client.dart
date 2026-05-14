@@ -100,6 +100,8 @@ class ApiClient {
     required String prompt,
     required String agentId,
     required String policy,
+    String? model,
+    String? reasoningEffort,
     List<String> imageUploadIds = const <String>[],
   }) async {
     final json = await _decodeMap(
@@ -112,6 +114,9 @@ class ApiClient {
         'inputs': _buildInputs(prompt: prompt, imageUploadIds: imageUploadIds),
         'agent': agentId,
         'policy': policy,
+        if (model != null && model.trim().isNotEmpty) 'model': model.trim(),
+        if (reasoningEffort != null && reasoningEffort.trim().isNotEmpty)
+          'reasoningEffort': reasoningEffort.trim(),
       },
       timeout: const Duration(seconds: 45),
     );
@@ -159,6 +164,8 @@ class ApiClient {
     required String sessionId,
     required String prompt,
     required String policy,
+    String? model,
+    String? reasoningEffort,
     List<String> imageUploadIds = const <String>[],
   }) async {
     final json = await _decodeMap(
@@ -168,6 +175,9 @@ class ApiClient {
         'prompt': prompt,
         'policy': policy,
         'inputs': _buildInputs(prompt: prompt, imageUploadIds: imageUploadIds),
+        if (model != null && model.trim().isNotEmpty) 'model': model.trim(),
+        if (reasoningEffort != null && reasoningEffort.trim().isNotEmpty)
+          'reasoningEffort': reasoningEffort.trim(),
       },
     );
     return TurnDetail.fromJson(json);

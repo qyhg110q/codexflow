@@ -269,6 +269,118 @@ void main() {
   );
 
   test(
+    'startSession sends canonical model id and reasoning effort overrides',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'codexflow.defaultModel': 'GPT-5.5',
+        'codexflow.defaultReasoning': 'high',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final model = AppModel(prefs);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      Map<String, dynamic>? requestJson;
+
+      unawaited(
+        server.forEach((request) async {
+          request.response.headers.contentType = ContentType.json;
+          if (request.method == 'POST' &&
+              request.uri.path == '/api/v1/sessions') {
+            requestJson =
+                jsonDecode(await utf8.decoder.bind(request).join())
+                    as Map<String, dynamic>;
+            request.response.write(jsonEncode(_summaryJson()));
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/dashboard') {
+            request.response.write(jsonEncode(_dashboardJson()));
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/sessions/thread-1') {
+            request.response.write(jsonEncode(_sessionDetailJson()));
+          } else {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+          }
+          await request.response.close();
+        }),
+      );
+
+      model.baseUrlString = 'http://${server.address.host}:${server.port}';
+      final session = await model.startSession(
+        cwd: 'D:\\workspace',
+        prompt: 'hello',
+        agentId: 'codex',
+      );
+
+      expect(session, isNotNull);
+      expect(requestJson?['model'], 'gpt-5.5');
+      expect(requestJson?['reasoningEffort'], 'high');
+
+      await server.close(force: true);
+    },
+  );
+
+  test(
+    'submitPrompt startTurn sends canonical model id and reasoning effort overrides',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'codexflow.defaultModel': 'GPT-5.4-Mini',
+        'codexflow.defaultReasoning': 'low',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final model = AppModel(prefs);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      Map<String, dynamic>? requestJson;
+
+      unawaited(
+        server.forEach((request) async {
+          request.response.headers.contentType = ContentType.json;
+          if (request.method == 'POST' &&
+              request.uri.path == '/api/v1/sessions/thread-1/turns/start') {
+            requestJson =
+                jsonDecode(await utf8.decoder.bind(request).join())
+                    as Map<String, dynamic>;
+            request.response.write(
+              jsonEncode(<String, dynamic>{
+                'id': 'turn-2',
+                'status': 'inProgress',
+                'startedAt': 0,
+                'completedAt': 0,
+                'durationMs': 0,
+                'error': '',
+                'diff': '',
+                'planExplanation': '',
+                'plan': <dynamic>[],
+                'items': <dynamic>[],
+              }),
+            );
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/dashboard') {
+            request.response.write(jsonEncode(_dashboardJson()));
+          } else if (request.method == 'GET' &&
+              request.uri.path == '/api/v1/sessions/thread-1') {
+            request.response.write(jsonEncode(_sessionDetailJson()));
+          } else {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write(jsonEncode(<String, Object>{'error': 'no'}));
+          }
+          await request.response.close();
+        }),
+      );
+
+      model.baseUrlString = 'http://${server.address.host}:${server.port}';
+      final sent = await model.submitPrompt(
+        session: _summary(lastTurnStatus: 'completed'),
+        prompt: 'follow up',
+      );
+
+      expect(sent, isTrue);
+      expect(requestJson?['model'], 'gpt-5.4-mini');
+      expect(requestJson?['reasoningEffort'], 'low');
+
+      await server.close(force: true);
+    },
+  );
+
+  test(
     'submit prompt returns after agent accepts message before refresh completes',
     () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -430,7 +542,11 @@ void main() {
   });
 }
 
-SessionSummary _summary({int pendingApprovals = 0, int usedTokens = 0}) {
+SessionSummary _summary({
+  int pendingApprovals = 0,
+  int usedTokens = 0,
+  String lastTurnStatus = 'inProgress',
+}) {
   final hasUsage = usedTokens > 0;
   return SessionSummary(
     id: 'thread-1',
@@ -448,7 +564,7 @@ SessionSummary _summary({int pendingApprovals = 0, int usedTokens = 0}) {
     branch: '',
     pendingApprovals: pendingApprovals,
     lastTurnId: 'turn-1',
-    lastTurnStatus: 'inProgress',
+    lastTurnStatus: lastTurnStatus,
     agentNickname: '',
     agentRole: '',
     lifecycleStage: 'managed',

@@ -446,7 +446,7 @@ func (a *Agent) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) StartSession(ctx context.Context, cwd string, input []map[string]any, requestedAgentID, policy string) (SessionSummary, error) {
+func (a *Agent) StartSession(ctx context.Context, cwd string, input []map[string]any, requestedAgentID, policy, model, reasoningEffort string) (SessionSummary, error) {
 	if len(input) == 0 {
 		return SessionSummary{}, errors.New("initial turn input is required")
 	}
@@ -467,6 +467,7 @@ func (a *Agent) StartSession(ctx context.Context, cwd string, input []map[string
 		params["serviceName"] = serviceName
 	}
 	applyThreadExecutionPolicy(params, policy)
+	applyModelOverrides(params, model, "")
 
 	var threadResp codex.ThreadStartResponse
 	if err := a.client.Call(ctx, "thread/start", params, &threadResp); err != nil {
@@ -483,7 +484,7 @@ func (a *Agent) StartSession(ctx context.Context, cwd string, input []map[string
 	a.broker.Publish("session.created", summary)
 	threadID := threadResp.Thread.ID
 	go func() {
-		if _, err := a.StartTurn(a.runCtx, threadID, input, policy); err != nil {
+		if _, err := a.StartTurn(a.runCtx, threadID, input, policy, model, reasoningEffort); err != nil {
 			a.logger.Warn("failed to start initial turn", "threadId", threadID, "error", err)
 			a.broker.Publish("turn.start.failed", map[string]string{
 				"threadId": threadID,
@@ -645,10 +646,10 @@ func (a *Agent) StartTurnWithPrompt(ctx context.Context, threadID, prompt string
 	if len(policy) > 0 {
 		selectedPolicy = policy[0]
 	}
-	return a.StartTurn(ctx, threadID, []map[string]any{textInput(prompt)}, selectedPolicy)
+	return a.StartTurn(ctx, threadID, []map[string]any{textInput(prompt)}, selectedPolicy, "", "")
 }
 
-func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[string]any, policy string) (TurnDetail, error) {
+func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[string]any, policy, model, reasoningEffort string) (TurnDetail, error) {
 	if len(input) == 0 {
 		return TurnDetail{}, errors.New("turn input is required")
 	}
@@ -662,6 +663,7 @@ func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[stri
 		"input":    input,
 	}
 	applyTurnExecutionPolicy(params, policy)
+	applyModelOverrides(params, model, reasoningEffort)
 	if err := a.client.Call(ctx, "turn/start", params, &response); err != nil {
 		return TurnDetail{}, err
 	}
@@ -1075,6 +1077,15 @@ func applyTurnExecutionPolicy(params map[string]any, policy string) {
 		params["approvalPolicy"] = "never"
 		params["approvalsReviewer"] = "user"
 		params["sandboxPolicy"] = map[string]any{"type": "dangerFullAccess"}
+	}
+}
+
+func applyModelOverrides(params map[string]any, model, reasoningEffort string) {
+	if trimmedModel := strings.TrimSpace(model); trimmedModel != "" {
+		params["model"] = trimmedModel
+	}
+	if trimmedEffort := strings.TrimSpace(strings.ToLower(reasoningEffort)); trimmedEffort != "" {
+		params["effort"] = trimmedEffort
 	}
 }
 
