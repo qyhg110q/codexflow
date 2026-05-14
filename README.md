@@ -579,55 +579,14 @@ assets                    README 截图资源
 
 ## 截图
 
-### iOS
-
 <table>
   <tr>
-    <td><img src="assets/screenshot-01.jpeg" alt="Screenshot 01" width="240"></td>
-    <td><img src="assets/screenshot-02.jpeg" alt="Screenshot 02" width="240"></td>
+    <td><img src="assets/1-1.jpg" alt="CodexFlow Screenshot 1" width="240"></td>
+    <td><img src="assets/1-2.jpg" alt="CodexFlow Screenshot 2" width="240"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshot-03.jpeg" alt="Screenshot 03" width="240"></td>
-    <td><img src="assets/screenshot-04.jpeg" alt="Screenshot 04" width="240"></td>
-  </tr>
-  <tr>
-    <td><img src="assets/screenshot-05.jpeg" alt="Screenshot 05" width="240"></td>
-    <td><img src="assets/screenshot-06.jpeg" alt="Screenshot 06" width="240"></td>
-  </tr>
-  <tr>
-    <td><img src="assets/screenshot-07.jpeg" alt="Screenshot 07" width="240"></td>
-    <td><img src="assets/screenshot-08.jpeg" alt="Screenshot 08" width="240"></td>
-  </tr>
-  <tr>
-    <td><img src="assets/screenshot-09.jpeg" alt="Screenshot 09" width="240"></td>
-    <td></td>
-  </tr>
-</table>
-
-### Claude
-
-<table>
-  <tr>
-    <td><img src="assets/screenshot_claude_01.jpeg" alt="Claude Screenshot 01" width="240"></td>
-    <td><img src="assets/screenshot_claude_02.jpeg" alt="Claude Screenshot 02" width="240"></td>
-  </tr>
-</table>
-
-### Android
-
-<table>
-  <tr>
-    <td><img src="assets/screenshot_android_01.png" alt="Android Screenshot 01" width="240"></td>
-    <td><img src="assets/screenshot_android_02.png" alt="Android Screenshot 02" width="240"></td>
-  </tr>
-</table>
-
-### Web
-
-<table>
-  <tr>
-    <td><img src="assets/screenshot_web_01.png" alt="Web Screenshot 01" width="240"></td>
-    <td><img src="assets/screenshot_web_02.png" alt="Web Screenshot 02" width="240"></td>
+    <td><img src="assets/1-3.jpg" alt="CodexFlow Screenshot 3" width="240"></td>
+    <td><img src="assets/1-4.png" alt="CodexFlow Screenshot 4" width="240"></td>
   </tr>
 </table>
 
