@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ type Server struct {
 	logger  *slog.Logger
 	mux     *http.ServeMux
 	uploads *imageUploadStore
+	webRoot string
 }
 
 type agentBackend interface {
@@ -42,16 +44,17 @@ type agentBackend interface {
 	Unsubscribe(chan runtime.Event)
 }
 
-func NewServer(agent *runtime.Agent, logger *slog.Logger) *Server {
-	return newServer(agent, logger)
+func NewServer(agent *runtime.Agent, logger *slog.Logger, webRoot string) *Server {
+	return newServer(agent, logger, webRoot)
 }
 
-func newServer(agent agentBackend, logger *slog.Logger) *Server {
+func newServer(agent agentBackend, logger *slog.Logger, webRoot string) *Server {
 	server := &Server{
 		agent:   agent,
 		logger:  logger,
 		mux:     http.NewServeMux(),
 		uploads: newImageUploadStore(),
+		webRoot: strings.TrimSpace(webRoot),
 	}
 	server.routes()
 	return server
@@ -70,6 +73,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/v1/approvals", s.handleApprovals)
 	s.mux.HandleFunc("/api/v1/approvals/", s.handleApprovalByID)
 	s.mux.HandleFunc("/api/v1/uploads/image", s.handleImageUpload)
+	if s.webRoot != "" {
+		s.mux.HandleFunc("/", s.handleBundledWeb)
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -460,6 +466,37 @@ func (s *Server) handleImageUpload(w http.ResponseWriter, r *http.Request) {
 		"name": item.Name,
 		"size": item.Size,
 	})
+}
+
+func (s *Server) handleBundledWeb(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/healthz" {
+		http.NotFound(w, r)
+		return
+	}
+
+	requestPath := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if requestPath == "." {
+		requestPath = ""
+	}
+
+	if requestPath != "" {
+		candidate := filepath.Join(s.webRoot, filepath.FromSlash(requestPath))
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			http.ServeFile(w, r, candidate)
+			return
+		}
+	}
+
+	indexPath := filepath.Join(s.webRoot, "index.html")
+	if _, err := os.Stat(indexPath); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, indexPath)
 }
 
 func (s *Server) buildTurnInput(

@@ -168,42 +168,36 @@ Client Apps
 解压后目录里应至少有：
 
 - `codexflow-agent.exe`
-- `start_codexflow.ps1`
-- `stop_codexflow.ps1`
 - `web/`
 
 宿主机前置要求：
 
 - Windows
 - 已安装并登录 `codex` CLI
-- `python` 在 `PATH` 里可用
 - 如果要跨局域网外访问，安装并登录 `Tailscale`
 
 启动：
 
 ```powershell
-.\start_codexflow.ps1
+.\codexflow-agent.exe
 ```
 
-脚本会：
+`codexflow-agent.exe` 会：
 
 - 启动本地 Agent
-- 启动 bundled Flutter Web
-- 自动尝试配置 Tailscale Serve
-- 打印可以直接填进 CodexFlow `Settings > Agent Address` 的地址
+- 在同一个端口托管 bundled Flutter Web
+- 打印可访问地址和健康检查地址
 
-典型输出：
+典型访问地址：
 
 ```text
+Local:     http://127.0.0.1:4318
 LAN:       http://192.168.31.147:4318
-Tailscale: https://your-machine.your-tailnet.ts.net
 ```
 
 停止：
 
-```powershell
-.\stop_codexflow.ps1
-```
+关闭启动它的控制台窗口，或在任务管理器中结束 `codexflow-agent.exe`。
 
 #### Android 客户端
 
@@ -211,7 +205,7 @@ Tailscale: https://your-machine.your-tailnet.ts.net
 
 - `codexflow-android-vX.Y.Z.apk`
 
-然后在 Android 设备上安装 APK，并在设置页填入上面脚本打印的地址。
+然后在 Android 设备上安装 APK，并在设置页填入上面显示的地址。
 
 #### Web 资产
 
@@ -244,30 +238,24 @@ Tailscale: https://your-machine.your-tailnet.ts.net
 go run ./cmd/codexflow-agent
 ```
 
-如果你是在源码树里直接给自己用，Windows 下也可以运行：
+如果你是在源码树里直接给自己用，Windows 下也可以直接运行已编译的：
 
 ```powershell
-.\start_agent_user.ps1
+.\codexflow-agent.exe
 ```
 
-这个脚本适合开发态使用，它会：
-
-- 自动启动或重编译 `codexflow-agent.exe`
-- 启动 Flutter Web 静态站点
-- 自动配置 Tailscale Serve（如果本机已安装并登录 Tailscale）
-- 直接打印可以填进 CodexFlow `Settings > Agent 地址` 的地址
-
-典型输出会包含：
+如果旁边存在 `web/` 或源码树中的 `flutter/codexflow/build/web`，agent 会自动托管 Web UI。典型访问地址会包含：
 
 ```text
+Local:     http://127.0.0.1:4318
 LAN:       http://192.168.31.147:4318
-Tailscale: https://laptop-g84e45ma.tailfa6379.ts.net
 ```
 
 默认监听地址：
 
 ```text
-127.0.0.1:4318
+源码模式默认是 127.0.0.1:4318
+带 bundled web 的 exe 直启模式默认是 0.0.0.0:4318
 ```
 
 可选环境变量：
@@ -338,7 +326,7 @@ http://192.168.1.10:4318
 https://codexflow.<tailnet>.ts.net/
   /healthz -> http://127.0.0.1:4318/healthz
   /api     -> http://127.0.0.1:4318/api
-  /        -> http://127.0.0.1:8088
+  /        -> http://127.0.0.1:4318/
 ```
 
 源码模式下，先启动 Agent：
@@ -347,17 +335,10 @@ https://codexflow.<tailnet>.ts.net/
 CODEXFLOW_LISTEN_ADDR=127.0.0.1:4318 go run ./cmd/codexflow-agent
 ```
 
-再启动一个静态文件服务承载 Flutter Web 构建产物，例如：
-
-```bash
-cd flutter/codexflow/build/web
-python3 -m http.server 8088 --bind 127.0.0.1
-```
-
 然后配置 Tailscale Serve：
 
 ```bash
-tailscale serve --bg --https 443 http://127.0.0.1:8088
+tailscale serve --bg --https 443 http://127.0.0.1:4318
 tailscale serve --bg --https 443 --set-path /api http://127.0.0.1:4318/api
 tailscale serve --bg --https 443 --set-path /healthz http://127.0.0.1:4318/healthz
 ```
@@ -406,7 +387,7 @@ curl http://127.0.0.1:4318/api/v1/dashboard
 4. 最后告诉我两个可直接填进 CodexFlow Settings > Agent Address 的地址：
    - LAN 地址
    - Tailscale 地址
-5. 如果缺少 codex、python 或 tailscale，请明确指出缺什么
+5. 如果缺少 codex 或 tailscale，请明确指出缺什么
 ```
 
 ### 7. 运行 iOS App

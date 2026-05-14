@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,7 +19,7 @@ func TestSessionForkEndpointRoutesToAgent(t *testing.T) {
 	agent := &fakeAgent{
 		forkResult: runtime.SessionSummary{ID: "forked-thread", LifecycleStage: "managed"},
 	}
-	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)), "")
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions/source-thread/fork", strings.NewReader(`{"turnId":"turn-2"}`))
 	recorder := httptest.NewRecorder()
@@ -47,7 +49,7 @@ func TestSessionStartAllowsEmptyCWD(t *testing.T) {
 	agent := &fakeAgent{
 		startResult: runtime.SessionSummary{ID: "thread-no-cwd", LifecycleStage: "managed"},
 	}
-	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	server := newServer(agent, slog.New(slog.NewTextHandler(io.Discard, nil)), "")
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", strings.NewReader(`{"action":"start","cwd":"","prompt":"hello","agent":"codex","policy":"ask","model":"gpt-5.5","reasoningEffort":"high"}`))
 	recorder := httptest.NewRecorder()
@@ -71,6 +73,38 @@ func TestSessionStartAllowsEmptyCWD(t *testing.T) {
 	}
 	if agent.startReasoningEffort != "high" {
 		t.Fatalf("start reasoning = %q, want %q", agent.startReasoningEffort, "high")
+	}
+}
+
+func TestBundledWebServesFilesAndSPAIndex(t *testing.T) {
+	webRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("index page"), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(webRoot, "main.dart.js"), []byte("bundle"), 0o644); err != nil {
+		t.Fatalf("write main.dart.js: %v", err)
+	}
+
+	server := newServer(&fakeAgent{}, slog.New(slog.NewTextHandler(io.Discard, nil)), webRoot)
+
+	assetRequest := httptest.NewRequest(http.MethodGet, "/main.dart.js", nil)
+	assetRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(assetRecorder, assetRequest)
+	if assetRecorder.Code != http.StatusOK {
+		t.Fatalf("asset status = %d, want %d", assetRecorder.Code, http.StatusOK)
+	}
+	if body := assetRecorder.Body.String(); body != "bundle" {
+		t.Fatalf("asset body = %q, want %q", body, "bundle")
+	}
+
+	spaRequest := httptest.NewRequest(http.MethodGet, "/sessions/abc", nil)
+	spaRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(spaRecorder, spaRequest)
+	if spaRecorder.Code != http.StatusOK {
+		t.Fatalf("spa status = %d, want %d", spaRecorder.Code, http.StatusOK)
+	}
+	if body := spaRecorder.Body.String(); body != "index page" {
+		t.Fatalf("spa body = %q, want %q", body, "index page")
 	}
 }
 

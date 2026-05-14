@@ -132,8 +132,6 @@ if ((-not $SkipApk) -and (-not (Test-Path $apkSource))) {
 
 Ensure-Directory $windowsBundleRoot
 Copy-Item $agentExe -Destination (Join-Path $windowsBundleRoot "codexflow-agent.exe") -Force
-Copy-Item (Join-Path $templateRoot "start_codexflow.ps1") -Destination (Join-Path $windowsBundleRoot "start_codexflow.ps1") -Force
-Copy-Item (Join-Path $templateRoot "stop_codexflow.ps1") -Destination (Join-Path $windowsBundleRoot "stop_codexflow.ps1") -Force
 Copy-Item (Join-Path $templateRoot "README.md") -Destination (Join-Path $windowsBundleRoot "README.md") -Force
 Copy-Item $webSource -Destination (Join-Path $windowsBundleRoot "web") -Recurse -Force
 
@@ -167,7 +165,7 @@ $notes = @"
 
 Recommended assets:
 
-- `codexflow-windows-host-$releaseVersion.zip`: Windows host bundle with agent, web UI, and one-click startup scripts.
+- `codexflow-windows-host-$releaseVersion.zip`: Windows host bundle with agent and bundled web UI.
 - `codexflow-android-$releaseVersion.apk`: Android client APK.
 - `codexflow-web-$releaseVersion.zip`: standalone static web build for custom hosting.
 - `SHA256SUMS.txt`: checksums for release assets.
