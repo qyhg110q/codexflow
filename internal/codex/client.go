@@ -106,7 +106,7 @@ func (c *Client) Start(ctx context.Context) error {
 	if err := c.Call(ctx, "initialize", map[string]any{
 		"clientInfo": map[string]any{
 			"name":    "CodexFlow Agent",
-			"version": "0.1.0",
+			"version": "0.1.2",
 		},
 		"capabilities": map[string]any{
 			"experimentalApi": true,

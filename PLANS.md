@@ -3,7 +3,7 @@
 ## Active Index
 
 - Current active ExecPlans:
-  - None.
+  - `docs/exec-plans/active/2026-05-15-release-v0.1.2.md`
 - Most recently completed:
   - `docs/exec-plans/completed/2026-05-15-agent-markdown-latex-rendering.md`
   - `docs/exec-plans/completed/2026-05-14-direct-exe-startup.md`
@@ -42,7 +42,8 @@ Create or update an ExecPlan when any of these are true:
 ## Current Active Plans
 
 - Current active ExecPlan:
-  - None.
+  - `docs/exec-plans/active/2026-05-15-release-v0.1.2.md`
+    - Goal: publish CodexFlow `v0.1.2` to GitHub Releases with refreshed packaged assets, aligned in-app versions, and release notes derived from post-`v0.1.1` commits.
 
 ## Recent Completed Plans
 
