@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_latex/flutter_markdown_latex.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:provider/provider.dart';
 
 import '../i18n/app_localizations.dart';
@@ -633,13 +635,50 @@ class MarkdownBodyBlock extends StatelessWidget {
   final String raw;
   final bool selectable;
 
+  static final RegExp _displayMathBlockPattern = RegExp(
+    r'\\\[\s*\r?\n?([\s\S]*?)\r?\n?\s*\\\]',
+    multiLine: true,
+  );
+
+  static String _normalizeMarkdownMath(String input) {
+    return input.replaceAllMapped(_displayMathBlockPattern, (Match match) {
+      final body = match.group(1)?.trim();
+      if (body == null || body.isEmpty) {
+        return match.group(0) ?? '';
+      }
+      return '\n\n\$\$\n$body\n\$\$\n\n';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final paragraphStyle = roundedTextStyle(
+      size: 12,
+      weight: FontWeight.w500,
+      color: Palette.ink,
+      height: 1.5,
+    );
     return MarkdownBody(
-      data: raw,
+      data: _normalizeMarkdownMath(raw),
       selectable: selectable,
       shrinkWrap: true,
       softLineBreak: true,
+      builders: <String, MarkdownElementBuilder>{
+        'latex': LatexElementBuilder(
+          textStyle: paragraphStyle,
+          textScaleFactor: 1.0,
+        ),
+      },
+      extensionSet: md.ExtensionSet(
+        <md.BlockSyntax>[
+          ...md.ExtensionSet.gitHubFlavored.blockSyntaxes,
+          LatexBlockSyntax(),
+        ],
+        <md.InlineSyntax>[
+          ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
+          LatexInlineSyntax(),
+        ],
+      ),
       styleSheet: MarkdownStyleSheet(
         a: roundedTextStyle(
           size: 12,
@@ -647,12 +686,7 @@ class MarkdownBodyBlock extends StatelessWidget {
           color: Palette.softBlue,
           height: 1.5,
         ),
-        p: roundedTextStyle(
-          size: 12,
-          weight: FontWeight.w500,
-          color: Palette.ink,
-          height: 1.5,
-        ),
+        p: paragraphStyle,
         h1: roundedTextStyle(
           size: 17,
           weight: FontWeight.w700,

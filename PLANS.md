@@ -5,6 +5,7 @@
 - Current active ExecPlans:
   - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-15-agent-markdown-latex-rendering.md`
   - `docs/exec-plans/completed/2026-05-14-direct-exe-startup.md`
   - `docs/exec-plans/completed/2026-05-14-mobile-model-reasoning-runtime-wiring.md`
   - `docs/exec-plans/completed/2026-05-14-settings-github-release-update-check.md`
@@ -49,6 +50,10 @@ Create or update an ExecPlan when any of these are true:
   - Goal: removed the PowerShell-based startup flow and made the Windows host bundle boot directly from `codexflow-agent.exe`, with bundled web served by the same Go process.
   - Primary surfaces: Go config/runtime startup, HTTP static hosting, release packaging, Windows host docs.
   - Validation: `go test ./internal/config ./internal/httpapi`, `go build -o codexflow-agent.exe ./cmd/codexflow-agent`, `.\build_release_assets.ps1 -SkipApk -SkipWeb -SkipAgentBuild`, and packaged bundle smoke checks for `/healthz` and `/`.
+- `docs/exec-plans/completed/2026-05-15-agent-markdown-latex-rendering.md`
+  - Goal: rendered math formulas in Flutter agent replies so LaTeX markdown no longer appears as raw source.
+  - Primary surfaces: shared `MarkdownBodyBlock`, Flutter markdown dependencies, formula rendering regression coverage.
+  - Validation: `flutter analyze --no-pub`, targeted `flutter test --no-pub`, and `.\build_android_apk.ps1`.
 - `docs/exec-plans/completed/2026-05-14-settings-github-release-update-check.md`
   - Goal: added a Settings-based GitHub Release update check for the Android app, showed release notes for new versions, and opened the APK download in the system browser.
   - Primary surfaces: Flutter Settings UI, AppModel update state, GitHub Release client, native Android bridge, APK build script.
