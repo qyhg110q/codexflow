@@ -133,6 +133,7 @@ if ((-not $SkipApk) -and (-not (Test-Path $apkSource))) {
 Ensure-Directory $windowsBundleRoot
 Copy-Item $agentExe -Destination (Join-Path $windowsBundleRoot "codexflow-agent.exe") -Force
 Copy-Item (Join-Path $templateRoot "README.md") -Destination (Join-Path $windowsBundleRoot "README.md") -Force
+Copy-Item (Join-Path $templateRoot "codexflow-agent.json") -Destination (Join-Path $windowsBundleRoot "codexflow-agent.json") -Force
 Copy-Item $webSource -Destination (Join-Path $windowsBundleRoot "web") -Recurse -Force
 
 if (Test-Path $windowsZip) {

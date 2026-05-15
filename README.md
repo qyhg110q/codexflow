@@ -258,9 +258,24 @@ LAN:       http://192.168.31.147:4318
 带 bundled web 的 exe 直启模式默认是 0.0.0.0:4318
 ```
 
-可选环境变量：
+监听地址现在优先来自可执行程序同目录的配置文件：
 
-- `CODEXFLOW_LISTEN_ADDR`
+```text
+codexflow-agent.json
+```
+
+默认内容：
+
+```json
+{
+  "listenAddr": "0.0.0.0:4318"
+}
+```
+
+如果配置文件不存在，agent 会在可执行程序同目录自动写出这个默认文件。
+
+其他可选环境变量：
+
 - `CODEXFLOW_CODEX_PATH`
 - `CODEXFLOW_REFRESH_INTERVAL`
 - `CODEXFLOW_STATE_DB_PATH`
@@ -306,8 +321,18 @@ Client: http://127.0.0.1:4318
 
 局域网跨设备使用：
 
+先确认 `codexflow-agent.json` 里是：
+
+```json
+{
+  "listenAddr": "0.0.0.0:4318"
+}
+```
+
+然后启动：
+
 ```bash
-CODEXFLOW_LISTEN_ADDR=0.0.0.0:4318 go run ./cmd/codexflow-agent
+go run ./cmd/codexflow-agent
 ```
 
 然后在客户端里填写运行 Agent 那台机器的局域网 IP，例如：
@@ -329,10 +354,18 @@ https://codexflow.<tailnet>.ts.net/
   /        -> http://127.0.0.1:4318/
 ```
 
-源码模式下，先启动 Agent：
+源码模式下，如果你想只绑定本机回环地址，把配置文件改成：
+
+```json
+{
+  "listenAddr": "127.0.0.1:4318"
+}
+```
+
+然后启动 Agent：
 
 ```bash
-CODEXFLOW_LISTEN_ADDR=127.0.0.1:4318 go run ./cmd/codexflow-agent
+go run ./cmd/codexflow-agent
 ```
 
 然后配置 Tailscale Serve：

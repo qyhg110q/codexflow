@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +22,7 @@ type Config struct {
 func Load() Config {
 	layout := detectRuntimeLayout()
 	return Config{
-		ListenAddr:      getenv("CODEXFLOW_LISTEN_ADDR", layout.DefaultListenAddr),
+		ListenAddr:      loadListenAddr(layout),
 		CodexPath:       getenv("CODEXFLOW_CODEX_PATH", detectCodexPath()),
 		ClaudePath:      getenv("CODEXFLOW_CLAUDE_PATH", "claude"),
 		RefreshInterval: getDurationEnv("CODEXFLOW_REFRESH_INTERVAL", 12*time.Second),
@@ -34,6 +35,10 @@ type runtimeLayout struct {
 	DefaultListenAddr  string
 	DefaultStateDBPath string
 	WebRoot            string
+}
+
+type fileConfig struct {
+	ListenAddr string `json:"listenAddr"`
 }
 
 func getenv(key, fallback string) string {
@@ -69,14 +74,14 @@ func detectRuntimeLayout() runtimeLayout {
 	listenAddr := "127.0.0.1:4318"
 	stateDBPath := defaultStateDBPath()
 
-	exeDir := executableDir()
-	if exeDir != "" {
-		if webRoot != "" {
+	baseDir := runtimeBaseDir()
+	if baseDir != "" {
+		if webRoot != "" && baseDir == executableDir() {
 			listenAddr = "0.0.0.0:4318"
-			stateDBPath = filepath.Join(exeDir, "data", "codexflow-state.db")
-		} else if !isSourceCheckout(exeDir) && runtime.GOOS == "windows" {
+			stateDBPath = filepath.Join(baseDir, "data", "codexflow-state.db")
+		} else if !isSourceCheckout(baseDir) && runtime.GOOS == "windows" {
 			listenAddr = "0.0.0.0:4318"
-			stateDBPath = filepath.Join(exeDir, "data", "codexflow-state.db")
+			stateDBPath = filepath.Join(baseDir, "data", "codexflow-state.db")
 		}
 	}
 
@@ -85,6 +90,64 @@ func detectRuntimeLayout() runtimeLayout {
 		DefaultStateDBPath: stateDBPath,
 		WebRoot:            webRoot,
 	}
+}
+
+func loadListenAddr(layout runtimeLayout) string {
+	configPath := configFilePath()
+	if configPath == "" {
+		return layout.DefaultListenAddr
+	}
+
+	cfg, err := readOrCreateFileConfig(configPath, layout.DefaultListenAddr)
+	if err != nil {
+		return layout.DefaultListenAddr
+	}
+	if strings.TrimSpace(cfg.ListenAddr) == "" {
+		return layout.DefaultListenAddr
+	}
+	return strings.TrimSpace(cfg.ListenAddr)
+}
+
+func readOrCreateFileConfig(path string, defaultListenAddr string) (fileConfig, error) {
+	if !fileExists(path) {
+		cfg := fileConfig{ListenAddr: defaultListenAddr}
+		if err := writeFileConfig(path, cfg); err != nil {
+			return fileConfig{}, err
+		}
+		return cfg, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fileConfig{}, err
+	}
+
+	var cfg fileConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fileConfig{}, err
+	}
+
+	if strings.TrimSpace(cfg.ListenAddr) == "" {
+		cfg.ListenAddr = defaultListenAddr
+		if err := writeFileConfig(path, cfg); err != nil {
+			return fileConfig{}, err
+		}
+	}
+
+	return cfg, nil
+}
+
+func writeFileConfig(path string, cfg fileConfig) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(path, data, 0o644)
 }
 
 func detectCodexPath() string {
@@ -113,14 +176,14 @@ func detectCodexPath() string {
 }
 
 func detectWebRoot() string {
-	exeDir := executableDir()
-	if exeDir == "" {
+	baseDir := runtimeBaseDir()
+	if baseDir == "" {
 		return ""
 	}
 
 	for _, candidate := range []string{
-		filepath.Join(exeDir, "web"),
-		filepath.Join(exeDir, "flutter", "codexflow", "build", "web"),
+		filepath.Join(baseDir, "web"),
+		filepath.Join(baseDir, "flutter", "codexflow", "build", "web"),
 	} {
 		if dirExists(candidate) {
 			return candidate
@@ -136,6 +199,21 @@ func executableDir() string {
 		return ""
 	}
 	return filepath.Dir(path)
+}
+
+func configFilePath() string {
+	baseDir := runtimeBaseDir()
+	if baseDir == "" {
+		return ""
+	}
+	return filepath.Join(baseDir, "codexflow-agent.json")
+}
+
+func runtimeBaseDir() string {
+	if cwd, err := os.Getwd(); err == nil && isSourceCheckout(cwd) {
+		return cwd
+	}
+	return executableDir()
 }
 
 func isSourceCheckout(dir string) bool {

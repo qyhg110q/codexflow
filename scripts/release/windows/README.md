@@ -5,6 +5,7 @@ This bundle is the easiest way to host CodexFlow on a Windows machine.
 ## Included
 
 - `codexflow-agent.exe`: the local Go agent
+- `codexflow-agent.json`: local config file, defaulting to `0.0.0.0:4318`
 - `web/`: bundled Flutter Web client served directly by the agent
 
 ## Prerequisites
@@ -36,6 +37,14 @@ Typical addresses:
 ```text
 Local: http://127.0.0.1:4318
 LAN:   http://192.168.31.147:4318
+```
+
+To change the listen address later, edit `codexflow-agent.json` in the same folder as the exe:
+
+```json
+{
+  "listenAddr": "0.0.0.0:4318"
+}
 ```
 
 ## Notes
