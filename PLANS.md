@@ -3,8 +3,9 @@
 ## Active Index
 
 - Current active ExecPlans:
-  - `docs/exec-plans/active/2026-05-15-release-v0.1.2.md`
+  - None.
 - Most recently completed:
+  - `docs/exec-plans/completed/2026-05-15-release-v0.1.2.md`
   - `docs/exec-plans/completed/2026-05-15-agent-markdown-latex-rendering.md`
   - `docs/exec-plans/completed/2026-05-14-direct-exe-startup.md`
   - `docs/exec-plans/completed/2026-05-14-mobile-model-reasoning-runtime-wiring.md`
@@ -42,11 +43,14 @@ Create or update an ExecPlan when any of these are true:
 ## Current Active Plans
 
 - Current active ExecPlan:
-  - `docs/exec-plans/active/2026-05-15-release-v0.1.2.md`
-    - Goal: publish CodexFlow `v0.1.2` to GitHub Releases with refreshed packaged assets, aligned in-app versions, and release notes derived from post-`v0.1.1` commits.
+  - None.
 
 ## Recent Completed Plans
 
+- `docs/exec-plans/completed/2026-05-15-release-v0.1.2.md`
+  - Goal: published CodexFlow `v0.1.2` to GitHub Releases with refreshed packaged assets, aligned in-app versions, and commit-derived release notes.
+  - Primary surfaces: Flutter version metadata, Go Agent handshake version, release packaging, GitHub publication flow.
+  - Validation: `go test ./internal/codex ./internal/config ./internal/httpapi`, `.\build_release_assets.ps1`, packaged bundle smoke checks for `/healthz` and `/version.json`, `git push origin main`, `git push origin v0.1.2`, and live GitHub Release publication.
 - `docs/exec-plans/completed/2026-05-14-direct-exe-startup.md`
   - Goal: removed the PowerShell-based startup flow and made the Windows host bundle boot directly from `codexflow-agent.exe`, with bundled web served by the same Go process.
   - Primary surfaces: Go config/runtime startup, HTTP static hosting, release packaging, Windows host docs.
