@@ -92,13 +92,40 @@ $createBody = @{
     prerelease = [bool]$PreRelease
 } | ConvertTo-Json -Depth 5
 
-$release = Invoke-GitHubApi -Method POST -Uri ("https://api.github.com/repos/{0}/releases" -f $Repository) -Token $token -Body $createBody
+$release = $null
+try {
+    $release = Invoke-GitHubApi -Method GET -Uri ("https://api.github.com/repos/{0}/releases/tags/{1}" -f $Repository, [Uri]::EscapeDataString($Tag)) -Token $token
+} catch {
+    if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+        throw
+    }
+}
+
+if ($release) {
+    $updateBody = @{
+        target_commitish = $TargetCommitish
+        name = $releaseName
+        body = $notes
+        draft = [bool]$Draft
+        prerelease = [bool]$PreRelease
+    } | ConvertTo-Json -Depth 5
+    $release = Invoke-GitHubApi -Method PATCH -Uri ("https://api.github.com/repos/{0}/releases/{1}" -f $Repository, $release.id) -Token $token -Body $updateBody
+} else {
+    $release = Invoke-GitHubApi -Method POST -Uri ("https://api.github.com/repos/{0}/releases" -f $Repository) -Token $token -Body $createBody
+}
 
 $assets = Get-ChildItem -Path $AssetDirectory -File | Where-Object {
     $_.Name -ne "release-notes.md"
 }
 
+$existingAssets = Invoke-GitHubApi -Method GET -Uri ("https://api.github.com/repos/{0}/releases/{1}/assets?per_page=100" -f $Repository, $release.id) -Token $token
+
 foreach ($asset in $assets) {
+    $existingAsset = $existingAssets | Where-Object { $_.name -eq $asset.Name } | Select-Object -First 1
+    if ($existingAsset) {
+        Invoke-GitHubApi -Method DELETE -Uri ("https://api.github.com/repos/{0}/releases/assets/{1}" -f $Repository, $existingAsset.id) -Token $token | Out-Null
+    }
+
     $uploadUri = "https://uploads.github.com/repos/$Repository/releases/$($release.id)/assets?name=$([Uri]::EscapeDataString($asset.Name))"
     $headers = @{
         Authorization = "Bearer $token"
@@ -114,4 +141,4 @@ foreach ($asset in $assets) {
         -ContentType "application/octet-stream" | Out-Null
 }
 
-Write-Host ("GitHub Release created: {0}" -f $release.html_url)
+Write-Host ("GitHub Release published: {0}" -f $release.html_url)

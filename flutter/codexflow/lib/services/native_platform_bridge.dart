@@ -4,7 +4,7 @@ class NativePlatformBridge {
   static const _channel = MethodChannel('codexflow/platform');
   static const fallbackAppVersion = String.fromEnvironment(
     'CODEXFLOW_APP_VERSION',
-    defaultValue: '0.1.2+2',
+    defaultValue: '0.1.3+3',
   );
 
   static Future<String> appVersion() async {
