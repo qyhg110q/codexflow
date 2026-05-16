@@ -461,7 +461,7 @@ func claudeResumeAvailability(record store.SessionRecord) (bool, string) {
 		return false, "invalid Claude session id"
 	}
 
-	return false, "当前没有可接管的 Claude runtime。"
+	return false, "当前 Claude 历史不足，无法继续这个会话。"
 }
 
 func (a *Agent) ensureClaudeThread(threadID string) error {
@@ -2254,7 +2254,7 @@ func (a *Agent) resumeClaudeSession(ctx context.Context, threadID string) (Sessi
 		attachMode = "opened_from_history"
 	}
 	if err != nil {
-		return SessionSummary{}, fmt.Errorf("failed to take over Claude session: %w", err)
+		return SessionSummary{}, fmt.Errorf("failed to prepare Claude session runtime: %w", err)
 	}
 
 	record.Thread.Status.ActiveFlags = appendUniqueStrings(record.Thread.Status.ActiveFlags, "claudeRuntimeAvailable")
@@ -2328,6 +2328,18 @@ func (a *Agent) startClaudeTurn(ctx context.Context, threadID string, input []ma
 	prompt := flattenClaudeInput(input)
 	if prompt == "" {
 		return TurnDetail{}, errors.New("turn input is required")
+	}
+
+	if _, ok := a.getClaudeSession(threadID); !ok && a.bindingClaudeSessionID(threadID) == "" {
+		if _, err := a.resumeClaudeSession(ctx, threadID); err != nil {
+			return TurnDetail{}, fmt.Errorf("failed to prepare Claude runtime: %w", err)
+		}
+		record, _ = a.store.SnapshotSession(threadID)
+	} else if record.Runtime.Ended || !record.Loaded {
+		if _, err := a.resumeClaudeSession(ctx, threadID); err != nil {
+			return TurnDetail{}, fmt.Errorf("failed to prepare Claude runtime: %w", err)
+		}
+		record, _ = a.store.SnapshotSession(threadID)
 	}
 
 	session, err := a.getOrCreateClaudeManagedSession(ctx, threadID, strings.TrimSpace(record.Thread.CWD))

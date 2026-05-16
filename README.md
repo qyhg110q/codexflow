@@ -47,8 +47,8 @@ Client Apps
 
 - `Go Agent` 负责把 Codex 的原始协议适配成稳定的应用层接口
 - 客户端不直接操纵终端，而是操纵会话本身
-- “自动发现已有会话”和“受控管理新会话”可以同时存在
-- 对 `Claude Code` 会额外区分 `历史导入` 和 `可接管 runtime`
+- 自动发现已有会话和新建会话使用同一套继续发送路径
+- 对 `Claude Code` 会在后台区分历史 transcript 和 runtime binding
 
 ## 当前已实现的功能
 
@@ -58,8 +58,8 @@ Client Apps
 - 自动发现真实的 Codex 历史会话
 - 自动发现 Claude 历史 transcript 与本机 live runtime
 - 读取 `thread/list`、`thread/read`、`thread/loaded/list`
-- 支持新建受控会话
-- 支持重新接管历史会话
+- 支持新建会话
+- 支持历史会话直接继续发送，必要时自动准备 runtime
 - 支持开始新 turn、steer 当前 turn、interrupt 当前 turn
 - 支持结束会话、归档会话
 - 捕获命令审批、文件变更审批、权限审批、结构化用户输入请求
@@ -68,7 +68,7 @@ Client Apps
 ### iOS App
 
 - 会话总览页
-- 已接管 / 已结束 / 可接管 Runtime / 历史导入分组
+- 最近会话和历史会话统一展示
 - 总会话、已加载、运行中、待审批统计
 - 会话详情页
 - plan / diff / timeline 展示
@@ -133,15 +133,15 @@ Client Apps
 
 - Agent 可以连上本机 Codex CLI
 - `dashboard` API 能返回真实会话数据
-- Claude 会话生命周期已经拆分为 `managed / runtime_available / history_only / ended`
+- 历史会话可以直接继续发送，Agent 会在后台准备 runtime
 - iOS 客户端可以消费真实数据并进行操作
 - Flutter Web 客户端可以通过浏览器访问本地 Agent
 - Flutter Android 客户端可以在模拟器中访问局域网 Agent
 
 最近这次更新主要包括：
 
-- Claude 会话分层：把 `历史导入` 和 `可接管 runtime` 正式拆开
-- 新建 / 接管 / 结束会话统一进入明确的生命周期阶段
+- Claude 历史 transcript 和 runtime binding 在后端分离，但客户端只暴露继续发送入口
+- 新建、历史继续、结束后继续使用统一的发送入口
 - 审批中心已经接入自动审批策略
 - SSE 事件流已经打通，客户端支持实时刷新
 - Agent 三端打包、Flutter Web / Android 打包、iOS `unsigned ipa` 导出流程验证
@@ -544,20 +544,17 @@ artifacts/release/vX.Y.Z/
 ## 基本使用方式
 
 1. 打开 `会话` 页面，查看当前真实会话。
-2. 对历史会话点击“接管到 CodexFlow”，将其转为受控会话。
-3. 在受控会话详情页查看 plan、diff、timeline。
-4. 在受控会话详情页发送下一轮 prompt，或 steer 当前执行中的 turn。
+2. 打开任意历史会话或新建会话。
+3. 在会话详情页查看 plan、diff、timeline。
+4. 在会话详情页发送下一轮 prompt，或 steer 当前执行中的 turn。
 5. 对正在执行的 turn，可以直接 interrupt。
 6. 打开 `Approvals` 页面，处理等待中的审批请求。
 7. 对不再需要的会话，可以结束或归档。
 
 补充说明：
 
-- `Codex` 会话可以直接按 `已接管 / 已结束 / 历史会话` 理解。
-- `Claude Code` 会话会进一步区分：
-  - `可接管 Runtime`：当前本机还能接入 live runtime
-  - `历史导入`：当前只发现 transcript，可查看历史
-  - `已接管`：已经由 CodexFlow 托管
+- `Codex` 会话和 `Claude Code` 会话都按“可继续会话”理解。
+- `Claude Code` 的 transcript、live runtime 和新开 runtime 是后端细节。用户直接发送下一条 prompt 即可继续。
 
 ## API 概览
 

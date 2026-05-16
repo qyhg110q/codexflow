@@ -1145,7 +1145,7 @@ class AppModel extends ChangeNotifier {
     if (!canResumeSession(session)) {
       final message = session.resumeBlockedReason.isNotEmpty
           ? session.resumeBlockedReason
-          : '这个会话当前不能重新接管。';
+          : '这个会话当前不能继续。';
       connectionError = message;
       showNotice(message, isError: true);
       notifyListeners();
@@ -1160,7 +1160,7 @@ class AppModel extends ChangeNotifier {
       await loadSession(session.id);
     } catch (error) {
       connectionError = error.toString();
-      showNotice('接管失败：${error.toString()}', isError: true);
+      showNotice('继续会话失败：${error.toString()}', isError: true);
       notifyListeners();
     }
   }
@@ -1567,17 +1567,17 @@ class AppModel extends ChangeNotifier {
 
   String _resumeSuccessNotice(SessionSummary session) {
     if (!session.isClaudeSession) {
-      return '会话已接管，可继续发消息。';
+      return '会话可继续发送消息。';
     }
     switch (session.runtimeAttachMode) {
       case 'resumed_existing':
-        return '已接入现有 Claude runtime。';
+        return '已连接现有 Claude runtime。';
       case 'opened_from_history':
-        return '已为这条 Claude 历史会话打开新的 runtime。';
+        return '已为这条 Claude 历史会话准备新的 runtime。';
       case 'new_session':
         return '已打开新的 Claude runtime。';
       default:
-        return 'Claude 会话已接管。';
+        return 'Claude 会话可继续。';
     }
   }
 

@@ -657,6 +657,12 @@ func (a *Agent) StartTurn(ctx context.Context, threadID string, input []map[stri
 		return a.startClaudeTurn(ctx, threadID, input)
 	}
 
+	if record, ok := a.store.SnapshotSession(threadID); !ok || !record.Loaded || record.Runtime.Ended {
+		if _, err := a.ResumeSession(ctx, threadID); err != nil {
+			return TurnDetail{}, fmt.Errorf("failed to prepare session runtime: %w", err)
+		}
+	}
+
 	var response codex.TurnStartResponse
 	params := map[string]any{
 		"threadId": threadID,

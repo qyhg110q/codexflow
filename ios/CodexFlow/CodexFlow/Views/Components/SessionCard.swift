@@ -47,11 +47,11 @@ struct SessionCard<Actions: View>: View {
 
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-              CapsuleTag(title: "托管", value: session.loaded ? "已接管" : "未接管")
+              CapsuleTag(title: "状态", value: session.loaded ? "Runtime" : "History")
               if session.isClaudeSession {
                 CapsuleTag(title: "链路", value: session.runtimeAvailable ? "Runtime" : "History")
                 if session.loaded && !session.runtimeAttachMode.isEmpty {
-                  CapsuleTag(title: "接管", value: session.runtimeAttachMode == "resumed_existing" ? "现有 Runtime" : (session.runtimeAttachMode == "opened_from_history" ? "历史新开" : "新建 Runtime"))
+                  CapsuleTag(title: "继续", value: session.runtimeAttachMode == "resumed_existing" ? "现有 Runtime" : (session.runtimeAttachMode == "opened_from_history" ? "历史新开" : "新建 Runtime"))
                 }
               }
               CapsuleTag(title: "来源", value: session.source)

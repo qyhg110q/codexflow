@@ -454,7 +454,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 ],
               ),
             ),
-            if (summary != null && !summary.isEnded)
+            if (summary != null)
               _ChatComposer(
                 summary: summary,
                 approvals: approvals,

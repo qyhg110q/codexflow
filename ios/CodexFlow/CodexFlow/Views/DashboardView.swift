@@ -45,20 +45,8 @@ struct DashboardView: View {
     )
   }
 
-  private var managedSessions: [SessionSummary] {
-    filteredSessions.filter { $0.lifecycleStage == "managed" }
-  }
-
-  private var endedSessions: [SessionSummary] {
-    filteredSessions.filter { $0.lifecycleStage == "ended" }
-  }
-
-  private var historySessions: [SessionSummary] {
-    filteredSessions.filter { $0.lifecycleStage == "history_only" }
-  }
-
-  private var runtimeSessions: [SessionSummary] {
-    filteredSessions.filter { $0.lifecycleStage == "runtime_available" }
+  private var continuableSessions: [SessionSummary] {
+    filteredSessions
   }
 
   private var selectedAgentOption: AgentOption? {
@@ -233,37 +221,11 @@ struct DashboardView: View {
             .foregroundStyle(Palette.mutedInk)
         }
       } else {
-        if !managedSessions.isEmpty {
+        if !continuableSessions.isEmpty {
           sessionGroup(
-            title: "已接管",
-            helper: "这些会话已经由 CodexFlow 后台托管，可以直接继续 steer、开始下一轮，或处理中断。", sessions: managedSessions
-          )
-        }
-
-        if !endedSessions.isEmpty {
-          sessionGroup(
-            title: "已结束",
-            helper: "这些会话的历史和 turns 仍然保留，但已经从 CodexFlow 托管态退出。需要继续时，再重新接管。", sessions: endedSessions
-          )
-        }
-
-        if !runtimeSessions.isEmpty {
-          sessionGroup(
-            title: selectedAgentID == "claude" ? "可接管 Runtime" : "待接管",
-            helper: selectedAgentID == "claude"
-              ? "这些 Claude 会话当前在本机 runtime 中可见。接管后，CodexFlow 才能继续刷新状态、处理中断和后续操作。"
-              : "这些会话当前未接管，但运行时仍可继续接管。",
-            sessions: runtimeSessions
-          )
-        }
-
-        if !historySessions.isEmpty {
-          sessionGroup(
-            title: selectedAgentID == "claude" ? "历史导入" : "历史会话",
-            helper: selectedAgentID == "claude"
-              ? "这些 Claude 会话目前只发现了历史 transcript。可以查看历史，但不代表当前存在可接管 runtime。"
-              : "这些只是已发现的真实会话记录。先接管，才可以继续执行、处理中断和后续审批。",
-            sessions: historySessions
+            title: "可继续会话",
+            helper: "打开任意会话即可查看历史并发送下一条 prompt。CodexFlow 会在后台准备 runtime。",
+            sessions: continuableSessions
           )
         }
       }
@@ -317,43 +279,13 @@ private struct SessionRow: View {
             SessionDetailView(sessionID: session.id)
           } label: {
             rowButtonLabel(
-              (session.loaded && !session.isEnded) ? "查看并继续" : (session.isEnded ? "查看详情" : "查看历史"),
+              "查看并继续",
               background: Color.white,
               foreground: Palette.softBlue,
               border: Palette.softBlue.opacity(0.24)
             )
           }
           .buttonStyle(.plain)
-
-          if session.isEnded {
-            Button {
-              Task { await model.resumeSession(session) }
-            } label: {
-              rowButtonLabel(
-                "重新接管",
-                background: Palette.softBlue,
-                foreground: .white,
-                border: .clear
-              )
-            }
-            .buttonStyle(.plain)
-            .disabled(!model.canResume(session))
-            .opacity(model.canResume(session) ? 1 : 0.45)
-          } else if !session.loaded {
-            Button {
-              Task { await model.resumeSession(session) }
-            } label: {
-              rowButtonLabel(
-                (session.isClaudeSession && !session.runtimeAvailable) ? "当前无 Runtime" : "接管到 CodexFlow",
-                background: Palette.softBlue,
-                foreground: .white,
-                border: .clear
-              )
-            }
-            .buttonStyle(.plain)
-            .disabled(!model.canResume(session))
-            .opacity(model.canResume(session) ? 1 : 0.45)
-          }
         }
 
         if capabilities.supportsApprovals && session.pendingApprovals > 0 {

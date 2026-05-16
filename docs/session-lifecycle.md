@@ -2,137 +2,70 @@
 
 ## Goal
 
-CodexFlow should treat "session history" and "live runtime" as separate concerns.
+CodexFlow presents every discovered session as continuable.
 
-- History answers: "what happened before"
-- Runtime answers: "what can CodexFlow control right now"
+The UI should not ask the user to understand whether a session is currently
+managed, attached, loaded, or history-only. Those are runtime implementation
+details. From the user's point of view, opening a session and sending a prompt
+is the continuation path.
 
-This is especially important for Claude, where transcript files and resumable
-runtime sessions are not the same thing.
+Internally, the agent still tracks history and runtime separately:
 
-## Lifecycle Stages
+- History answers: what happened before
+- Runtime answers: what process can execute the next turn
 
-Every session exposed by the agent should resolve to exactly one lifecycle
-stage:
+## User Model
 
-1. `managed`
-   - CodexFlow currently owns the session/runtime
-   - The user can start a turn, steer, interrupt, end, and process approvals
+Every visible session has one of two user-facing states:
 
-2. `runtime_available`
-   - CodexFlow does not currently own the session/runtime
-   - A live runtime is detectable on this machine
-   - The user can attach CodexFlow to that runtime
+1. `continuable`
+   - The session is visible and can receive the next prompt
+   - If no runtime is currently attached, the agent prepares one before starting
+     the turn
 
-3. `history_only`
-   - History/transcript exists
-   - No live runtime is currently detectable
-   - The user can view history
-   - For agents that support it, CodexFlow may open a new runtime based on the
-     same history record
+2. `archived`
+   - The session is hidden from local CodexFlow surfaces
+   - Upstream history is preserved when the source agent keeps it
 
-4. `ended`
-   - CodexFlow previously managed this session, but the lifecycle was closed in
-     CodexFlow
-   - History must remain visible
-   - The user may re-attach or open a new runtime later
+Ending a session is no longer a barrier to continuing later. It stops the
+current runtime relationship and leaves the history visible. A later prompt can
+prepare a runtime again.
 
-5. `discovered`
-   - Fallback bucket for partially discovered sessions
-   - Should be rare
-   - UI should treat this as read-only until more information is known
+## Runtime Model
 
-## New Session Flow
+Backend lifecycle fields such as `managed`, `runtime_available`,
+`history_only`, and `ended` may still exist for compatibility and diagnostics.
+They must not gate the normal continue composer.
+
+Before starting a turn, the agent ensures runtime readiness:
 
 ### Codex
 
-1. User chooses agent = `codex`
-2. User must provide:
-   - absolute `cwd`
-   - first prompt
-3. Agent creates a managed runtime immediately
-4. Session enters `managed`
+1. If the thread is already loaded, start the turn directly.
+2. If the thread is not loaded or was ended locally, call `thread/resume`.
+3. Mark the session loaded/managed internally.
+4. Start the requested turn.
 
 ### Claude
 
-1. User chooses agent = `claude`
-2. User must provide:
-   - absolute `cwd`
-   - first prompt
-3. Agent opens a new Claude runtime
-4. Agent stores:
-   - transcript/history identity
-   - runtime session id
-   - attach mode = `opened`
-5. Session enters `managed`
+1. If a live SDK session exists, start the turn directly.
+2. If a runtime session id is known, try to resume that runtime.
+3. If resume fails or only transcript history exists, open a new Claude runtime
+   from that history representation.
+4. Store the resulting runtime binding and start the requested turn.
 
-## Attach / Resume Flow
-
-### Codex
-
-- Resume means: attach CodexFlow back to the same Codex thread/runtime
-
-### Claude
-
-Resume must branch:
-
-1. If a live runtime id is known and available:
-   - attach to that runtime
-   - attach mode = `resumed`
-
-2. If no live runtime is available but history exists:
-   - open a new Claude runtime for this thread representation
-   - attach mode = `opened`
-
-3. If runtime attach fails:
-   - fallback to opening a new runtime
-   - preserve the same history thread in UI
-
-Claude must never treat transcript session ids as automatically resumable
-runtime ids.
-
-## End Flow
-
-Ending a session means:
-
-- CodexFlow stops managing the runtime
-- Session moves to `ended`
-- History stays visible
-
-It does **not** mean:
-
-- deleting transcript/history
-- removing the session from the list
-- archiving the session
-
-## Archive Flow
-
-Archiving means:
-
-- remove the session from CodexFlow local surfaces
-- clear local lifecycle state
-- preserve upstream history if it exists
-
-Archive is a UI/local-state cleanup action, not a runtime action.
+Claude transcript ids and runtime session ids remain separate.
 
 ## UI Rules
 
-- `managed`: show compose, steer, interrupt, end
-- `runtime_available`: show attach CTA
-- `history_only`: show history-first UI and explain there is no live runtime
-- `ended`: show ended state and re-attach CTA
+- Show the composer for every visible session detail.
+- Let the first send action prepare runtime automatically.
+- Do not show a required attach/resume/takeover step.
+- Keep archive as the explicit action for removing a session from local
+  surfaces.
+- Keep interrupt and approval controls tied to the currently running turn.
 
-Claude-specific UI should also show:
+## API Compatibility
 
-- `History` vs `Runtime`
-- `resumed` vs `opened`
-
-## Backend Rules
-
-- Keep transcript path separate from runtime session id
-- Persist runtime binding independently from display thread id
-- Session detail should merge:
-  - transcript history
-  - live runtime turns
-- Runtime availability should come from actual live detection, not from stale
-  runtime ids alone
+`POST /api/v1/sessions/:id/resume` remains available for older clients and
+manual recovery, but new clients should not require it before sending a prompt.
