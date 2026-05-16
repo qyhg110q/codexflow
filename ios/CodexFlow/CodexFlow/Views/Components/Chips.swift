@@ -57,7 +57,7 @@ struct StatusPill: View {
     case "completed":
       return "已完成"
     case "notLoaded":
-      return "历史"
+      return "未接管"
     case "failed", "systemError":
       return "失败"
     case "idle":

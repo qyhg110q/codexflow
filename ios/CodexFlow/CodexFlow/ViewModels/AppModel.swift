@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
 
   func resumeSession(_ session: SessionSummary) async {
     guard canResume(session) else {
-      let message = session.resumeBlockedReason.isEmpty ? "这个会话当前不能继续。" : session.resumeBlockedReason
+      let message = session.resumeBlockedReason.isEmpty ? "这个会话当前不能重新接管。" : session.resumeBlockedReason
       connectionError = message
       showNotice(message, isError: true)
       return
@@ -116,7 +116,7 @@ final class AppModel: ObservableObject {
       await loadSession(id: session.id)
     } catch {
       connectionError = error.localizedDescription
-      showNotice("继续会话失败：\(error.localizedDescription)", isError: true)
+      showNotice("接管失败：\(error.localizedDescription)", isError: true)
     }
   }
 
@@ -354,17 +354,17 @@ final class AppModel: ObservableObject {
 
   private func resumeSuccessNotice(for session: SessionSummary) -> String {
     guard session.isClaudeSession else {
-      return "会话可继续发送消息。"
+      return "会话已接管，可继续发消息。"
     }
     switch session.runtimeAttachMode {
     case "resumed_existing":
-      return "已连接现有 Claude runtime。"
+      return "已接入现有 Claude runtime。"
     case "opened_from_history":
-      return "已为这条 Claude 历史会话准备新的 runtime。"
+      return "已为这条 Claude 历史会话打开新的 runtime。"
     case "new_session":
       return "已打开新的 Claude runtime。"
     default:
-      return "Claude 会话可继续。"
+      return "Claude 会话已接管。"
     }
   }
 

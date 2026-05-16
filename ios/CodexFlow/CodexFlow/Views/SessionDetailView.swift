@@ -85,6 +85,10 @@ struct SessionDetailView: View {
 
   private var supportsApprovals: Bool { capabilities.supportsApprovals }
   private var supportsInterruptTurn: Bool { capabilities.supportsInterruptTurn }
+  private var supportsResume: Bool {
+    guard let summary else { return capabilities.supportsResume }
+    return model.canResume(summary)
+  }
   private var supportsArchive: Bool { capabilities.supportsArchive }
 
   var body: some View {
@@ -112,7 +116,13 @@ struct SessionDetailView: View {
                 approvals: remainingSessionApprovals
               )
             }
-            composerCard(summary)
+            if summary.isEnded {
+              takeoverCard(summary)
+            } else if summary.loaded {
+              composerCard(summary)
+            } else {
+              takeoverCard(summary)
+            }
           }
 
           if let detail {
@@ -229,11 +239,11 @@ struct SessionDetailView: View {
 
         ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: 8) {
-            CapsuleTag(title: "状态", value: summary.loaded ? "Runtime" : "History")
+            CapsuleTag(title: "托管", value: summary.loaded ? "已接管" : "未接管")
             if summary.isClaudeSession {
               CapsuleTag(title: "链路", value: summary.runtimeAvailable ? "Runtime" : "History")
               if summary.loaded && !summary.runtimeAttachMode.isEmpty {
-                CapsuleTag(title: "继续", value: summary.runtimeAttachMode == "resumed_existing" ? "现有 Runtime" : (summary.runtimeAttachMode == "opened_from_history" ? "历史新开" : "新建 Runtime"))
+                CapsuleTag(title: "接管", value: summary.runtimeAttachMode == "resumed_existing" ? "现有 Runtime" : (summary.runtimeAttachMode == "opened_from_history" ? "历史新开" : "新建 Runtime"))
               }
             }
             CapsuleTag(title: "来源", value: summary.source)
@@ -283,6 +293,44 @@ struct SessionDetailView: View {
         }
 
         ApprovalList(approvals: approvals, showSessionLabel: false)
+      }
+    }
+  }
+
+  private func takeoverCard(_ summary: SessionSummary) -> some View {
+    PanelCard {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: 8) {
+          Image(systemName: "arrow.trianglehead.clockwise")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Palette.softBlue)
+
+          Text(summary.isEnded ? "会话已结束" : "先接管，再继续")
+            .font(.system(.headline, design: .rounded, weight: .semibold))
+            .foregroundStyle(Palette.ink)
+        }
+
+        Text(takeoverSummary(for: summary))
+          .font(.system(.footnote, design: .rounded))
+          .foregroundStyle(Palette.mutedInk)
+
+        Button {
+          Task {
+            await model.resumeSession(summary)
+            await refreshSessionPage()
+          }
+        } label: {
+          Text((!summary.isEnded && summary.isClaudeSession && !summary.runtimeAvailable)
+            ? "当前无 Runtime"
+            : (summary.isEnded ? "重新接管会话" : "Resume 并接管会话"))
+            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(supportsResume ? Palette.softBlue : Palette.mutedInk.opacity(0.35))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .disabled(!supportsResume)
       }
     }
   }
@@ -510,8 +558,8 @@ struct SessionDetailView: View {
           }
         }
 
-        if !supportsApprovals || !supportsInterruptTurn || !supportsArchive {
-          Text("当前 Agent 部分能力已降级：\(supportsApprovals ? "" : "审批 ")\(supportsInterruptTurn ? "" : "中断 ")\(supportsArchive ? "" : "归档 ")")
+        if !supportsApprovals || !supportsInterruptTurn || !supportsResume || !supportsArchive {
+          Text("当前 Agent 部分能力已降级：\(supportsApprovals ? "" : "审批 ")\(supportsInterruptTurn ? "" : "中断 ")\(supportsResume ? "" : "接管 ")\(supportsArchive ? "" : "归档 ")")
             .font(.system(.caption, design: .rounded, weight: .medium))
             .foregroundStyle(Palette.mutedInk)
         }
@@ -521,25 +569,25 @@ struct SessionDetailView: View {
 
   private func actionSummary(for summary: SessionSummary) -> String {
     if summary.isEnded {
-      return "这个会话已经结束过。历史和 turn 会保留，继续发送时会自动准备 runtime。"
+      return "这个会话已经在 CodexFlow 中结束。历史和 turn 会保留，但不再由 CodexFlow 托管；如需继续，请重新接管。"
     }
     if summary.isClaudeSession && summary.loaded && summary.runtimeAttachMode == "resumed_existing" {
-      return "当前这条 Claude 会话连接到现有 runtime，可以直接开始下一轮或继续处理中断。"
+      return "当前这条 Claude 会话已经重新接入现有 runtime。你现在看到的是原 runtime 的继续态，可以直接开始下一轮或继续处理中断。"
     }
     if summary.isClaudeSession && summary.loaded && summary.runtimeAttachMode == "opened_from_history" {
-      return "当前这条 Claude 会话已经从历史 transcript 准备了新 runtime。"
+      return "当前这条 Claude 会话由 CodexFlow 新开 runtime 托管。历史 transcript 会继续保留显示，但后续运行状态来自这条新 runtime。"
     }
     if summary.isClaudeSession && summary.loaded && summary.runtimeAttachMode == "new_session" {
       return "这是由 CodexFlow 新建的 Claude 会话。当前 runtime 和历史从一开始就是同一条链路。"
     }
     if summary.isClaudeSession && summary.runtimeAvailable && !summary.loaded {
-      return "已经检测到 Claude live runtime。直接发送即可继续。"
+      return "已经检测到 Claude live runtime。接入后，这个页面才会开始跟踪运行状态、处理中断，并允许继续下一轮。"
     }
     if summary.isClaudeSession && summary.historyAvailable && !summary.runtimeAvailable {
-      return "这是 Claude 历史导入记录。直接发送时会准备新的 runtime。"
+      return "这是 Claude 历史导入记录。当前可以查看历史，但本机没有发现对应 live runtime。"
     }
     if !summary.loaded && summary.lastTurnStatus == "inProgress" {
-      return "这个会话当前有运行中记录。直接发送补充要求时会先准备 runtime。"
+      return "这个会话当前还没被 CodexFlow 接管。现在只能查看历史；点下面“Resume 并接管会话”后，才可以继续 steer、处理中断和刷新运行状态。"
     }
     if summary.lastTurnStatus == "inProgress" {
       return "当前有一轮正在运行。这个页面会自动刷新最近 turn 的内容；你也可以继续 steer 或中断。"
@@ -547,7 +595,7 @@ struct SessionDetailView: View {
     if summary.loaded {
       return "当前没有运行中的 turn。你可以直接输入新的 prompt，开始下一轮。"
     }
-    return "这个会话可以直接继续。发送下一条 prompt 时，CodexFlow 会自动准备 runtime。"
+    return "这个会话当前未接管。你可以查看历史；如果需要继续执行，先接管到 CodexFlow 后台。"
   }
 
   @ViewBuilder
@@ -568,14 +616,33 @@ struct SessionDetailView: View {
     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 
+  private func takeoverSummary(for summary: SessionSummary) -> String {
+    if summary.isEnded {
+      return "这个会话已经在 CodexFlow 中结束了。历史记录仍然可看；如果你想继续发 prompt 或重新托管审批/状态刷新，先重新接管。"
+    }
+    if summary.isClaudeSession && summary.runtimeAvailable && !summary.loaded {
+      return "已经检测到 Claude live runtime。接入后，这个页面才会开始跟踪运行状态、处理中断，并允许继续下一轮。"
+    }
+    if summary.isClaudeSession && summary.historyAvailable && !summary.runtimeAvailable {
+      return "这是 Claude 历史导入记录。当前可以查看历史，但本机没有发现对应 live runtime。"
+    }
+    if !summary.canResume && !summary.resumeBlockedReason.isEmpty {
+      return summary.resumeBlockedReason
+    }
+    if summary.lastTurnStatus == "inProgress" {
+      return "这个会话可能仍在别处运行，但当前不在 CodexFlow 里托管。先接管后，CodexFlow 才能继续刷新状态、处理审批，并允许你继续 steer 或中断。"
+    }
+    return "这个会话现在只是历史记录，还没有被 CodexFlow 接管。接管后，这个页面才会出现“开始下一轮”或“继续引导当前 turn”的操作。"
+  }
+
   private var emptyStateMessage: String {
     if let summary, summary.isEnded {
-      return "这个会话已经结束。当前没有更多 turn 可展示；如果要继续执行，直接发送下一条 prompt。"
+      return "这个会话已经结束。当前没有更多 turn 可展示；如果要继续执行，先重新接管。"
     }
     if summary?.loaded == true {
       return "这个会话还没有 turn。你可以直接在上面输入，开始第一轮。"
     }
-    return "这个会话当前没有可展示的 turn 历史。直接发送即可继续。"
+    return "这个会话当前没有可展示的 turn 历史。先接管后，才能继续在 CodexFlow 里执行。"
   }
 
   private func refreshSessionPage() async {
