@@ -35,7 +35,9 @@ coverage.out
 data/
 logs/
 artifacts/release/
+artifacts/codexflow-agent-*
 codexflow-agent.exe
+codexflow-agent
 codexflow-agent.pid
 codexflow-web.pid
 codexflow-state.db
